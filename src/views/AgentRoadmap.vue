@@ -6,7 +6,7 @@ import MarkdownView from '@/components/MarkdownView.vue'
 import SideSheet from '@/components/SideSheet.vue'
 import CheckItem from '@/components/CheckItem.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import { currentWeekNo, stages, weeks, type WeekPlan } from '@/lib/data'
+import { currentWeekNo, notesForWeek, stages, weeks, type WeekPlan } from '@/lib/data'
 import { cycleWeekStatus, isChecked, toggleTask, weekStatus, type WeekStatus } from '@/lib/store'
 
 type Filter = 'all' | 'todo' | 'active' | 'done'
@@ -50,8 +50,25 @@ watch(filter, (f) => {
   expanded.value = f === 'all' ? new Set() : new Set(visible.value.map((s) => s.id))
 })
 
+/* 抽屉：本周计划 / 笔记 两个视图 */
 const active = ref<WeekPlan | null>(null)
-const open = (w: WeekPlan) => (active.value = w)
+const tab = ref<'plan' | 'note'>('plan')
+
+const open = (w: WeekPlan) => {
+  active.value = w
+  tab.value = 'plan'
+}
+/** 周卡上的「查看笔记」：直接打开抽屉并切到笔记视图 */
+const openNotes = (w: WeekPlan) => {
+  active.value = w
+  tab.value = 'note'
+}
+
+const activeNotes = computed(() => (active.value ? notesForWeek(active.value.no) : []))
+const noteCountOf = (no: number) => notesForWeek(no).length
+
+/** 笔记目录名，给空状态里的提示用 */
+const noteDir = (no: number) => `data/notes/week-${String(no).padStart(2, '0')}/`
 
 function weekTasksDone(w: WeekPlan) {
   return w.tasks.filter((t, i) => isChecked(w.no, i, t.done)).length
@@ -181,6 +198,15 @@ function weekPct(w: WeekPlan) {
                   <span class="tiny muted">约 {{ w.hours }} 小时</span>
                   <span class="tiny muted">三件事 {{ weekTasksDone(w) }}/{{ w.tasks.length }}</span>
                 </div>
+                <button
+                  class="note-btn"
+                  :class="{ empty: !noteCountOf(w.no) }"
+                  @click.stop="openNotes(w)"
+                >
+                  <AppIcon name="note" :size="13" />
+                  <span>查看笔记</span>
+                  <span class="note-n">{{ noteCountOf(w.no) }}</span>
+                </button>
               </footer>
             </article>
           </div>
@@ -198,24 +224,72 @@ function weekPct(w: WeekPlan) {
       @close="active = null"
     >
       <template v-if="active">
-        <div class="sheet-tasks">
-          <div class="row between mb-12">
-            <b class="tiny dim">本周三件事</b>
-            <button class="pill" :class="STATUS_PILL[statusOf(active)]" @click="cycleWeekStatus(active.no, active.status)">
-              标记为{{ STATUS_LABEL[statusOf(active)] }}
-            </button>
-          </div>
-          <CheckItem
-            v-for="(t, i) in active.tasks"
-            :key="i"
-            :text="t.text"
-            :checked="isChecked(active.no, i, t.done)"
-            @toggle="toggleTask(active.no, i, t.done)"
-          />
-          <p class="tiny muted mt-8">已完成 {{ weekTasksDone(active) }} / {{ active.tasks.length }}</p>
+        <!-- 抽屉顶部：计划 / 笔记 切换 -->
+        <div class="segmented sheet-seg">
+          <button :class="{ active: tab === 'plan' }" @click="tab = 'plan'">本周计划</button>
+          <button :class="{ active: tab === 'note' }" @click="tab = 'note'">
+            查看笔记
+            <span class="seg-n" :class="{ zero: !activeNotes.length }">{{ activeNotes.length }}</span>
+          </button>
         </div>
-        <div class="hr" />
-        <MarkdownView :source="active.body" />
+
+        <!-- ① 本周计划 -->
+        <template v-if="tab === 'plan'">
+          <div class="sheet-tasks">
+            <div class="row between mb-12">
+              <b class="tiny dim">本周三件事</b>
+              <button
+                class="pill"
+                :class="STATUS_PILL[statusOf(active)]"
+                @click="cycleWeekStatus(active.no, active.status)"
+              >
+                标记为{{ STATUS_LABEL[statusOf(active)] }}
+              </button>
+            </div>
+            <CheckItem
+              v-for="(t, i) in active.tasks"
+              :key="i"
+              :text="t.text"
+              :checked="isChecked(active.no, i, t.done)"
+              @toggle="toggleTask(active.no, i, t.done)"
+            />
+            <p class="tiny muted mt-8">
+              已完成 {{ weekTasksDone(active) }} / {{ active.tasks.length }}
+            </p>
+          </div>
+          <div class="hr" />
+          <MarkdownView :source="active.body" />
+        </template>
+
+        <!-- ② 本周笔记 -->
+        <template v-else>
+          <ul v-if="activeNotes.length" class="note-list">
+            <li v-for="n in activeNotes" :key="n.slug">
+              <RouterLink
+                class="note-item"
+                :to="{ name: 'note', params: { week: active!.no, slug: n.slug } }"
+              >
+                <span class="note-ico"><AppIcon name="note" :size="15" /></span>
+                <span class="col grow" style="min-width: 0; gap: 3px">
+                  <b class="note-name">{{ n.title }}</b>
+                  <span class="tiny muted">
+                    {{ n.date || '未标日期' }}{{ n.tags.length ? ' · ' + n.tags.join(' / ') : '' }}
+                  </span>
+                </span>
+                <AppIcon name="arrow" :size="15" class="note-go" />
+              </RouterLink>
+            </li>
+          </ul>
+
+          <div v-else class="note-empty">
+            <span class="note-empty-ico"><AppIcon name="note" :size="26" /></span>
+            <b>这一周还没有笔记</b>
+            <p class="tiny muted">
+              在项目的 <code>{{ noteDir(active.no) }}</code> 目录下新建一个
+              <code>.md</code> 文件就行，文件名就是标题，内容随便写。
+            </p>
+          </div>
+        </template>
       </template>
     </SideSheet>
   </div>
@@ -423,6 +497,82 @@ function weekPct(w: WeekPlan) {
   transform: scale(0.94);
 }
 
+/* 周卡底部的「查看笔记」入口 */
+.note-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(10, 132, 255, 0.2);
+  transition: filter 0.25s var(--ease), transform 0.2s var(--ease);
+}
+
+.note-btn:hover {
+  filter: brightness(1.04);
+}
+
+.note-btn:active {
+  transform: scale(0.985);
+}
+
+.note-btn.empty {
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+.note-btn .note-n {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  text-align: center;
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+}
+
+.note-btn.empty .note-n {
+  color: var(--text-3);
+}
+
+/* ---------------- 抽屉：计划 / 笔记 ---------------- */
+.sheet-seg {
+  display: flex;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.sheet-seg button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.seg-n {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.seg-n.zero {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
 .sheet-tasks {
   padding: 12px 14px;
   border-radius: var(--r-lg);
@@ -432,6 +582,94 @@ function weekPct(w: WeekPlan) {
 
 .sheet-tasks .pill {
   cursor: pointer;
+}
+
+/* 笔记列表 */
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.note-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+
+.note-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.note-ico {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.note-name {
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-go {
+  flex: none;
+  color: var(--text-3);
+}
+
+/* 空状态 */
+.note-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 40px 20px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+}
+
+.note-empty-ico {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--text-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.note-empty p {
+  max-width: 320px;
+  line-height: 1.7;
+}
+
+.note-empty code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
 }
 
 @media (max-width: 1100px) {

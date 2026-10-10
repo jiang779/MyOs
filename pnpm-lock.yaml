@@ -24,15 +24,18 @@ importers:
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.2.0
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitejs/plugin-vue':
         specifier: ^5.2.1
-        version: 5.2.4(vite@6.4.4)(vue@3.5.43(typescript@5.7.3))
+        version: 5.2.4(vite@6.4.4(@types/node@26.6.5))(vue@3.5.43(typescript@5.7.3))
       typescript:
         specifier: ~5.7.2
         version: 5.7.3
       vite:
         specifier: ^6.0.7
-        version: 6.4.4
+        version: 6.4.4(@types/node@26.6.5)
       vue-tsc:
         specifier: ^2.2.0
         version: 2.2.12(typescript@5.7.3)
@@ -372,6 +375,9 @@ packages:
   '@types/mdurl@2.0.0':
     resolution: {integrity: sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg==}
 
+  '@types/node@26.6.5':
+    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
+
   '@vitejs/plugin-vue@5.2.4':
     resolution: {integrity: sha512-7Yx/SXSOcQq5HiiV3orevHUFn+pmMB4cgbEkDYgnkUWb0WfeQ/wa2yFv6D5ICiCQOVpjA7vYDXrC7AGO8yjDHA==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -548,6 +554,9 @@ packages:
 
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
+
+  undici-types@8.9.0:
+    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
   vite@6.4.4:
     resolution: {integrity: sha512-xGjU/SyjeNyb0E4KxXBvYz/1C+3JXuujvf2hXNOtnlcE+58o5ajd9N2/n2VhkiJvpCP2qQasnUpx5PXNeI+p1Q==}
@@ -795,9 +804,13 @@ snapshots:
 
   '@types/mdurl@2.0.0': {}
 
-  '@vitejs/plugin-vue@5.2.4(vite@6.4.4)(vue@3.5.43(typescript@5.7.3))':
+  '@types/node@26.6.5':
     dependencies:
-      vite: 6.4.4
+      undici-types: 8.9.0
+
+  '@vitejs/plugin-vue@5.2.4(vite@6.4.4(@types/node@26.6.5))(vue@3.5.43(typescript@5.7.3))':
+    dependencies:
+      vite: 6.4.4(@types/node@26.6.5)
       vue: 3.5.43(typescript@5.7.3)
 
   '@volar/language-core@2.4.15':
@@ -1030,7 +1043,9 @@ snapshots:
 
   uc.micro@2.1.0: {}
 
-  vite@6.4.4:
+  undici-types@8.9.0: {}
+
+  vite@6.4.4(@types/node@26.6.5):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -1039,6 +1054,7 @@ snapshots:
       rollup: 4.64.3
       tinyglobby: 0.2.17
     optionalDependencies:
+      '@types/node': 26.6.5
       fsevents: 2.3.3
 
   vscode-uri@3.2.0: {}

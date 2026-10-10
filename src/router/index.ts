@@ -7,6 +7,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/creator', name: 'creator', component: () => import('@/views/Creator.vue'), meta: { title: '创作' } },
   { path: '/health', name: 'health', component: () => import('@/views/Health.vue'), meta: { title: '健康' } },
   { path: '/notes', name: 'notes', component: () => import('@/views/Notes.vue'), meta: { title: '日志' } },
+  {
+    path: '/note/:week/:slug',
+    name: 'note',
+    component: () => import('@/views/NoteDetail.vue'),
+    meta: { title: '笔记' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

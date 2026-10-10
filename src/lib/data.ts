@@ -193,6 +193,60 @@ export function currentWeek(): WeekPlan | undefined {
   )
 }
 
+/* ------------------------------ 学习笔记（按周归属） ------------------------------
+ * 约定：文件放在 data/notes/week-XX/ 目录下，XX 就是周号。
+ * 目录即归属 —— 不需要在文件里写任何字段，文件名就是笔记标题。
+ * 想按时间排序，文件名用 2026-10-10-xxx.md 这种前缀即可（按文件名排序）。
+ */
+
+export interface NoteDoc {
+  /** 所属周号，来自目录名 week-XX */
+  week: number
+  /** 路由标识：文件名（不含 .md） */
+  slug: string
+  /** 标题：frontmatter 里有 title 就用它，否则用文件名 */
+  title: string
+  /** 可选日期 */
+  date: string
+  /** 可选标签 */
+  tags: string[]
+  /** 原始 markdown，原样渲染 */
+  body: string
+}
+
+const noteFiles = rawFiles(
+  import.meta.glob('../../data/notes/week-*/**/*.md', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  })
+)
+
+export const notes: NoteDoc[] = Object.entries(noteFiles)
+  .map(([path, raw]) => {
+    const week = num(/\/week-(\d+)\//.exec(path)?.[1], 0)
+    const slug = path.split('/').pop()!.replace(/\.md$/i, '')
+    const { data, body } = parseFrontmatter(raw)
+    return {
+      week,
+      slug,
+      title: str(data.title, slug),
+      date: str(data.date, ''),
+      tags: arr(data.tags),
+      body,
+    }
+  })
+  .filter((n) => n.week > 0 && n.slug && !n.slug.startsWith('.'))
+  .sort((a, b) => a.slug.localeCompare(b.slug, 'zh-Hans-CN'))
+
+export function notesForWeek(week: number): NoteDoc[] {
+  return notes.filter((n) => n.week === week)
+}
+
+export function noteBySlug(week: number, slug: string): NoteDoc | undefined {
+  return notes.find((n) => n.week === week && n.slug === slug)
+}
+
 /* ------------------------------ 项目 ------------------------------ */
 
 const projectFiles = rawFiles(
