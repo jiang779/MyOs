@@ -10,6 +10,22 @@ const LS_KEY = 'myos.state.v1'
 export type WeekStatus = 'todo' | 'active' | 'done'
 export type VideoStatus = 'script' | 'record' | 'edit' | 'published'
 
+/** 一条「不健康饮食」记录 */
+export interface JunkRecord {
+  id: string
+  /** 吃的日期 YYYY-MM-DD */
+  date: string
+  /** 吃了什么 */
+  food: string
+  /** 可选场景：零食 / 加餐 / 夜宵 / 聚餐 / 甜饮 */
+  scene?: string
+  /** 写入时间（ISO），用于备份比对与同日记内排序 */
+  createdAt: string
+}
+
+/** 可选的场景标签 */
+export const JUNK_SCENES = ['零食', '加餐', '夜宵', '聚餐', '甜饮'] as const
+
 interface AppState {
   theme: 'light' | 'dark'
   /** 周任务的勾选：`w1:0` → true */
@@ -20,6 +36,10 @@ interface AppState {
   videoStatus: Record<string, VideoStatus>
   /** 侧栏是否展开（桌面） */
   sidebarOpen: boolean
+  /** 不健康饮食记录（按日期倒序） */
+  junkRecords: JunkRecord[]
+  /** 最近一次导出备份的时间（ISO），空串 = 从未备份 */
+  junkBackupAt: string
 }
 
 function defaults(): AppState {
@@ -29,6 +49,8 @@ function defaults(): AppState {
     weekStatus: {},
     videoStatus: {},
     sidebarOpen: false,
+    junkRecords: [],
+    junkBackupAt: '',
   }
 }
 
@@ -114,7 +136,70 @@ export function setVideoStatus(id: string, s: VideoStatus) {
   state.videoStatus[id] = s
 }
 
+/* ------------------------------ 不健康饮食记录 ------------------------------ */
+
+function sortJunk(rows: JunkRecord[]) {
+  rows.sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1
+  )
+}
+
+export function addJunkRecord(input: { date: string; food: string; scene?: string }) {
+  const rec: JunkRecord = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: input.date,
+    food: input.food.trim(),
+    scene: input.scene || undefined,
+    createdAt: new Date().toISOString(),
+  }
+  state.junkRecords.unshift(rec)
+  sortJunk(state.junkRecords)
+  return rec
+}
+
+export function removeJunkRecord(id: string) {
+  const i = state.junkRecords.findIndex((r) => r.id === id)
+  if (i >= 0) state.junkRecords.splice(i, 1)
+}
+
+/**
+ * 合并导入的记录（按 id 去重，不会覆盖已有数据）。
+ * 返回新增条数。外部文件不可信，这里逐条校验字段。
+ */
+export function importJunkRecords(rows: unknown): number {
+  if (!Array.isArray(rows)) return 0
+  const seen = new Set(state.junkRecords.map((r) => r.id))
+  let added = 0
+  for (const raw of rows) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Partial<JunkRecord>
+    const date = typeof r.date === 'string' ? r.date.trim() : ''
+    const food = typeof r.food === 'string' ? r.food.trim() : ''
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !food) continue
+    const id = typeof r.id === 'string' && r.id ? r.id : `${date}-${food}-${added}`
+    if (seen.has(id)) continue
+    state.junkRecords.push({
+      id,
+      date,
+      food: food.slice(0, 200),
+      scene: typeof r.scene === 'string' ? r.scene : undefined,
+      createdAt: typeof r.createdAt === 'string' ? r.createdAt : '',
+    })
+    seen.add(id)
+    added++
+  }
+  sortJunk(state.junkRecords)
+  return added
+}
+
+export function markJunkBackup() {
+  state.junkBackupAt = new Date().toISOString()
+}
+
 export function resetAll() {
   const t = state.theme
-  Object.assign(state, defaults(), { theme: t })
+  // 饮食记录是长期积累、不可再生的数据，重置界面状态时不动它
+  const keepJunk = state.junkRecords.slice()
+  const keepBackup = state.junkBackupAt
+  Object.assign(state, defaults(), { theme: t, junkRecords: keepJunk, junkBackupAt: keepBackup })
 }
