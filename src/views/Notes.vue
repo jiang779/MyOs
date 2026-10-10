@@ -1,217 +1,227 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import PageHead from '@/components/PageHead.vue'
-import MarkdownView from '@/components/MarkdownView.vue'
-import { bugs, daily, ideas, streakDays, config } from '@/lib/data'
+import AppIcon from '@/components/AppIcon.vue'
+import { notes, weekByNo } from '@/lib/data'
 
-type Tab = 'daily' | 'bugs' | 'ideas'
-
-const tab = ref<Tab>('daily')
-const streak = streakDays()
-
-const tabs: { key: Tab; label: string; icon: string }[] = [
-  { key: 'daily', label: '每日一句', icon: '✍️' },
-  { key: 'bugs', label: '踩坑本', icon: '🕳️' },
-  { key: 'ideas', label: '点子本', icon: '💡' },
-]
-
-const current = computed(() => (tab.value === 'ideas' ? ideas : bugs))
-
-const allTags = computed(() => {
-  const set = new Map<string, number>()
-  ;[...bugs, ...ideas].forEach((e) => e.tags.forEach((t) => set.set(t, (set.get(t) ?? 0) + 1)))
-  return [...set.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+/** 按周分组，周号升序；组内保持 data.ts 里按文件名排好的顺序 */
+const groups = computed(() => {
+  const map = new Map<number, typeof notes>()
+  for (const n of notes) {
+    const list = map.get(n.week)
+    if (list) list.push(n)
+    else map.set(n.week, [n])
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([week, list]) => ({
+      week,
+      title: weekByNo(week)?.title ?? '',
+      dir: `data/notes/week-${String(week).padStart(2, '0')}/`,
+      notes: list,
+    }))
 })
 
-const tagFilter = ref('')
-const filtered = computed(() =>
-  current.value.filter((e) => !tagFilter.value || e.tags.includes(tagFilter.value))
-)
+const total = computed(() => notes.length)
 </script>
 
 <template>
   <div>
-    <PageHead kicker="沉淀线" title="日志 · 踩坑 · 点子" sub="记录比记忆可靠。今天做了什么，写一行就行。">
+    <PageHead
+      kicker="沉淀线"
+      title="笔记"
+      sub="学习笔记全部集中在这里，按周归位。加笔记就往 data/notes/week-XX/ 里放 md 文件，没有格式要求。"
+    >
       <template #actions>
-        <div class="segmented">
-          <button v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }" @click="tab = t.key">
-            {{ t.icon }} {{ t.label }}
-          </button>
-        </div>
+        <span class="pill">{{ total }} 篇</span>
       </template>
     </PageHead>
 
-    <div class="grid grid-4">
-      <div class="card tile fade-up">
-        <span class="tiny muted">连续输出</span>
-        <b class="num">{{ streak }}<em>天</em></b>
-        <p class="tiny muted">目标 {{ config.streakGoal }} 天</p>
-      </div>
-      <div class="card tile fade-up">
-        <span class="tiny muted">每日记录</span>
-        <b class="num">{{ daily.length }}<em>条</em></b>
-        <p class="tiny muted">最近 {{ daily[0]?.date ?? '—' }}</p>
-      </div>
-      <div class="card tile fade-up">
-        <span class="tiny muted">踩坑</span>
-        <b class="num">{{ bugs.length }}<em>个</em></b>
-        <p class="tiny muted">都是超过 20 分钟的那种</p>
-      </div>
-      <div class="card tile fade-up">
-        <span class="tiny muted">点子</span>
-        <b class="num">{{ ideas.length }}<em>个</em></b>
-        <p class="tiny muted">每周日挑一个看看</p>
-      </div>
-    </div>
-
-    <!-- 每日 -->
-    <section v-if="tab === 'daily'" class="card mt-20 fade-up">
-      <div class="card-head">
-        <h2 class="card-title"><span class="ico">✍️</span> 每天一句话</h2>
-        <span class="card-note">共 {{ daily.length }} 天</span>
-      </div>
-      <ol v-if="daily.length" class="timeline">
-        <li v-for="(d, i) in daily" :key="d.date" :class="{ first: i === 0 }">
-          <span class="tl-dot" />
-          <div class="tl-body">
-            <div class="row" style="gap: 8px">
-              <b class="tiny">{{ d.date }}</b>
-              <span v-if="d.mood" class="tiny">{{ d.mood }}</span>
-              <span v-if="i === 0" class="pill info">最近</span>
-            </div>
-            <p class="tl-text">{{ d.text }}</p>
+    <!-- 分组列表 -->
+    <template v-if="groups.length">
+      <section v-for="g in groups" :key="g.week" class="card group fade-up">
+        <header class="group-head">
+          <span class="week-no">{{ g.week }}</span>
+          <div class="col grow" style="min-width: 0">
+            <b class="group-title">第 {{ g.week }} 周 · {{ g.title }}</b>
+            <span class="tiny muted">{{ g.dir }}</span>
           </div>
-        </li>
-      </ol>
-      <div v-else class="empty">
-        还没有记录。在 <code>data/daily/</code> 下新建 <code>2026-10-09.md</code>，写一句就算开始。
-      </div>
-    </section>
+          <span class="pill mute">{{ g.notes.length }} 篇</span>
+        </header>
 
-    <!-- 踩坑 / 点子 -->
-    <template v-else>
-      <div class="row wrap mt-20" style="gap: 8px">
-        <button class="pill" :class="{ info: !tagFilter }" @click="tagFilter = ''">全部标签</button>
-        <button
-          v-for="[t, n] in allTags"
-          :key="t"
-          class="pill"
-          :class="{ info: tagFilter === t }"
-          @click="tagFilter = tagFilter === t ? '' : t"
-        >
-          #{{ t }} <span class="muted">{{ n }}</span>
-        </button>
-      </div>
-
-      <div class="grid grid-2 mt-16">
-        <article
-          v-for="e in filtered"
-          :key="e.title"
-          class="card entry fade-up"
-        >
-          <div class="row between">
-            <span class="tiny muted mono">{{ e.date }}</span>
-            <div class="row wrap" style="gap: 5px">
-              <span v-for="t in e.tags" :key="t" class="pill">{{ t }}</span>
-            </div>
-          </div>
-          <h3 class="entry-title">
-            <span v-if="tab === 'bugs'">🕳️</span><span v-else>💡</span>
-            {{ e.title }}
-          </h3>
-          <MarkdownView :source="e.body" />
-        </article>
-      </div>
-
-      <div v-if="!filtered.length" class="empty">
-        这个标签下还没有内容
-      </div>
+        <ul class="note-list">
+          <li v-for="n in g.notes" :key="n.slug">
+            <RouterLink class="note-item" :to="{ name: 'note', params: { week: g.week, slug: n.slug } }">
+              <span class="note-ico"><AppIcon name="note" :size="15" /></span>
+              <span class="col grow" style="min-width: 0; gap: 3px">
+                <b class="note-name">{{ n.title }}</b>
+                <span class="tiny muted">
+                  {{ n.date || '未标日期' }}{{ n.tags.length ? ' · ' + n.tags.join(' / ') : '' }}
+                </span>
+              </span>
+              <AppIcon name="arrow" :size="15" class="note-go" />
+            </RouterLink>
+          </li>
+        </ul>
+      </section>
     </template>
+
+    <!-- 空状态 -->
+    <div v-else class="card empty-card fade-up">
+      <span class="empty-ico"><AppIcon name="note" :size="28" /></span>
+      <b>还没有笔记</b>
+      <p class="tiny muted">
+        在项目的 <code>data/notes/week-01/</code> 这类目录下新建一个 <code>.md</code> 文件就行 ——
+        目录名就是周号，文件名就是标题，内容随便写。
+      </p>
+      <RouterLink to="/agent" class="btn ghost sm">
+        <AppIcon name="route" :size="15" />
+        去 Agent 路线看看每周学什么
+      </RouterLink>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.tile {
-  padding: 18px 20px;
+.group {
+  margin-top: 20px;
+  padding: 20px 22px 22px;
+}
+
+.group-head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
 }
 
-.num {
-  font-size: 28px;
+.week-no {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
   font-weight: 680;
-  letter-spacing: -0.035em;
-}
-
-.num em {
-  font-style: normal;
-  font-size: 13px;
-  color: var(--text-3);
-  font-weight: 550;
-  margin-left: 3px;
-}
-
-/* 时间轴 */
-.timeline {
-  position: relative;
-  padding-left: 22px;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 8px;
-  bottom: 12px;
-  width: 1.5px;
-  background: var(--line);
-  border-radius: 2px;
-}
-
-.timeline li {
-  position: relative;
-  padding: 0 0 22px 6px;
-}
-
-.tl-dot {
-  position: absolute;
-  left: -22px;
-  top: 7px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--surface-solid);
-  border: 2.5px solid var(--line-strong);
-}
-
-.timeline li.first .tl-dot {
+  color: #fff;
   background: var(--grad-blue);
-  border-color: transparent;
-  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.14);
+  box-shadow: 0 6px 16px rgba(10, 132, 255, 0.26);
 }
 
-.tl-text {
-  margin-top: 5px;
-  font-size: 14.5px;
-  color: var(--text);
-  line-height: 1.7;
+.group-title {
+  font-size: 15.5px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 条目卡 */
-.entry {
+.note-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 14px;
 }
 
-.entry-title {
-  font-size: 15.5px;
-  letter-spacing: -0.02em;
-  line-height: 1.45;
+.note-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease);
 }
 
-.pill {
-  cursor: pointer;
+.note-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.note-ico {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.note-name {
+  font-size: 14.5px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-go {
+  flex: none;
+  color: var(--text-3);
+}
+
+/* 空状态 */
+.empty-card {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 54px 24px;
+}
+
+.empty-ico {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.empty-card p {
+  max-width: 420px;
+  line-height: 1.75;
+}
+
+.empty-card code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.empty-card .btn {
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .group {
+    padding: 16px 14px 18px;
+  }
+  .week-no {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    font-size: 15px;
+  }
+  .group-title {
+    font-size: 14px;
+  }
 }
 </style>

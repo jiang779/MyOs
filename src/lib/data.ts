@@ -9,7 +9,6 @@ import {
   parseChecklist,
   parseFrontmatter,
   parseList,
-  plain,
   section,
   type Task,
 } from './parse'
@@ -73,19 +72,6 @@ export interface Video {
   views: number
   hook: string
   body: string
-}
-
-export interface NoteEntry {
-  date: string
-  title: string
-  tags: string[]
-  body: string
-}
-
-export interface DailyEntry {
-  date: string
-  mood: string
-  text: string
 }
 
 export interface SiteConfig {
@@ -305,55 +291,11 @@ export const VIDEO_STEPS: { key: VideoStatus; label: string }[] = [
   { key: 'published', label: '发布' },
 ]
 
-/* ------------------------------ 日志 / 踩坑 / 点子 ------------------------------ */
-
-function parseEntries(body: string): NoteEntry[] {
-  return body
-    .split(/\n(?=##\s)/)
-    .filter((p) => p.trimStart().startsWith('## '))
-    .map((part) => {
-      const lines = part.split('\n')
-      const head = lines[0].replace(/^##\s*/, '').trim()
-      const m = /^(\d{4}-\d{2}-\d{2})\s*(?:[·|\-—:]\s*)?(.*)$/.exec(head)
-      const date = m ? m[1] : ''
-      const title = m && m[2].trim() ? m[2].trim() : head
-      let rest = lines.slice(1).join('\n').trim()
-      let tags: string[] = []
-      const tm = /^tags:\s*(.+)$/m.exec(rest)
-      if (tm) {
-        tags = tm[1]
-          .split(/[\s,，]+/)
-          .map((t) => t.replace(/^#/, '').trim())
-          .filter(Boolean)
-        rest = rest.replace(tm[0], '').trim()
-      }
-      return { date, title, tags, body: rest }
-    })
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-}
-
-const bugRaw = rawFiles(import.meta.glob('../../data/notes/bugs.md', { query: '?raw', import: 'default', eager: true }))
-const ideaRaw = rawFiles(import.meta.glob('../../data/notes/ideas.md', { query: '?raw', import: 'default', eager: true }))
-
-export const bugs: NoteEntry[] = parseEntries(parseFrontmatter(Object.values(bugRaw)[0] ?? '').body)
-export const ideas: NoteEntry[] = parseEntries(parseFrontmatter(Object.values(ideaRaw)[0] ?? '').body)
-
-/* ------------------------------ 每日一句话 ------------------------------ */
-
-const dailyFiles = rawFiles(
-  import.meta.glob('../../data/daily/*.md', { query: '?raw', import: 'default', eager: true })
-)
-
-export const daily: DailyEntry[] = Object.entries(dailyFiles)
-  .map(([path, raw]) => {
-    const { data, body } = parseFrontmatter(raw)
-    return {
-      date: str(data.date, path.split('/').pop()!.replace('.md', '')),
-      mood: str(data.mood, ''),
-      text: plain(body, 200),
-    }
-  })
-  .sort((a, b) => (a.date < b.date ? 1 : -1))
+/* ------------------------------ 日志（已下线） ------------------------------
+ * 原来的「每日一句 / 踩坑本 / 点子本」与连续输出天数统计已废弃，
+ * 数据文件归档在 data/_archive/log-module/。
+ * 现在统一用上面的「学习笔记」（data/notes/week-XX/）。
+ */
 
 /* ------------------------------ 健康 · 饮食 ------------------------------ */
 
@@ -462,20 +404,6 @@ export function startOfDay(d: Date): Date {
 export function toISODate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-/** 连续输出天数：从今天往前数连续有 daily 记录的天数 */
-export function streakDays(today = new Date()): number {
-  const set = new Set(daily.map((d) => d.date))
-  let n = 0
-  const cur = startOfDay(today)
-  // 今天还没写也从昨天算起，避免早上打开就断签
-  if (!set.has(toISODate(cur))) cur.setDate(cur.getDate() - 1)
-  while (set.has(toISODate(cur))) {
-    n++
-    cur.setDate(cur.getDate() - 1)
-  }
-  return n
 }
 
 export interface VideoSummary {

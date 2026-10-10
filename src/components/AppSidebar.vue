@@ -10,7 +10,7 @@ const nav = [
   { to: '/projects', label: '项目', icon: 'cube' },
   { to: '/creator', label: '创作', icon: 'video' },
   { to: '/health', label: '健康', icon: 'heart' },
-  { to: '/notes', label: '日志', icon: 'book' },
+  { to: '/notes', label: '笔记', icon: 'note' },
 ]
 
 const route = useRoute()

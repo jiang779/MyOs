@@ -737,6 +737,11 @@ html[data-theme='dark'] .pill.info {
   border-radius: var(--r-md);
 }
 
+/* 标题锚点：跳转后留一点呼吸空间（目录点击 / 直接访问 #id） */
+.prose :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 20px;
+}
+
 /* ---------------- 代码高亮（极简配色） ---------------- */
 .hljs-comment,
 .hljs-quote {
