@@ -62,33 +62,61 @@ function clearAnswer() {
 /** 已答题目总数 */
 const answeredTotal = computed(() => interviewQuestions.filter((q) => answered(q.id)).length)
 
-/** 导出答案为 markdown，复制到剪贴板 */
+/** 导出答案为「题目 + 答案」格式，可直接覆盖 data/interview/*.md */
 async function exportAnswers() {
-  const lines: string[] = ['# 面试题答案', '']
+  const blocks: string[] = []
   for (const g of interviewGroups) {
-    const answeredInGroup = g.questions.filter((q) => answered(q.id))
-    if (!answeredInGroup.length) continue
-    lines.push(`## ${g.type}`, '')
-    for (const q of answeredInGroup) {
-      lines.push(`### ${q.text}`)
-      lines.push(getAnswer(q.id))
-      lines.push('')
-    }
+    blocks.push(renderGroup(g))
   }
-  const text = lines.join('\n')
+  const text = blocks
+    .map((b, i) => `<!-- ===== ${interviewGroups[i].fileName}.md ===== -->\n${b}`)
+    .join('\n\n')
+
   try {
     await navigator.clipboard.writeText(text)
-    flash('答案已复制到剪贴板，粘贴到 md 文件即可')
+    flash('已复制全部（题目+答案），按类型覆盖到 data/interview/*.md')
   } catch {
-    // fallback：创建下载
     const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'interview-answers.md'
+    a.download = 'interview-questions.md'
     a.click()
     URL.revokeObjectURL(url)
-    flash('答案已下载为 md 文件')
+    flash('已下载全部（题目+答案）')
+  }
+}
+
+/** 渲染单个类型为 md 文本 */
+function renderGroup(g: { type: string; questions: { text: string; id: string }[] }): string {
+  const lines: string[] = ['---', `type: ${g.type}`, '---', '']
+  for (const q of g.questions) {
+    lines.push(`- ${q.text}`)
+    const ans = getAnswer(q.id)
+    if (ans) {
+      for (const al of ans.split('\n')) {
+        lines.push(`  > ${al}`)
+      }
+    }
+  }
+  return lines.join('\n')
+}
+
+/** 只导出单个类型，直接复制可覆盖对应文件 */
+async function exportGroup(g: { type: string; fileName: string; questions: { text: string; id: string }[] }) {
+  const text = renderGroup(g)
+  try {
+    await navigator.clipboard.writeText(text)
+    flash(`已复制「${g.type}」，覆盖到 ${g.fileName}.md`)
+  } catch {
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${g.fileName}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    flash(`已下载 ${g.fileName}.md`)
   }
 }
 </script>
@@ -133,6 +161,14 @@ async function exportAnswers() {
             <span class="card-note">
               {{ g.questions.filter((q) => answered(q.id)).length }}/{{ g.questions.length }} 已答
             </span>
+            <button
+              class="btn ghost sm export-btn"
+              title="复制本类题目+答案"
+              @click.stop="exportGroup(g)"
+            >
+              <AppIcon name="download" :size="14" />
+              复制本类
+            </button>
             <AppIcon
               name="chevron"
               :size="16"

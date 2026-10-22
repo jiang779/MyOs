@@ -252,10 +252,14 @@ export interface InterviewQuestion {
   type: string
   /** 题目内容 */
   text: string
+  /** md 里预置的答案（题目下紧跟的 `>` 引用块），无则空串 */
+  answer: string
 }
 
 export interface InterviewGroup {
   type: string
+  /** 原始文件名（不含 .md），导出时用于标注覆盖哪个文件 */
+  fileName: string
   questions: InterviewQuestion[]
 }
 
@@ -263,33 +267,48 @@ const interviewFiles = rawFiles(
   import.meta.glob('../../data/interview/*.md', { query: '?raw', import: 'default', eager: true })
 )
 
-/** 解析面试题 md：frontmatter.type = 类型名，正文为 `- 题目` 列表 */
-function parseInterviewQuestions(raw: string, fallbackType: string): InterviewGroup {
+/** 解析面试题 md：frontmatter.type = 类型名，正文为 `- 题目` 列表，题目下的 `>` 行为答案 */
+function parseInterviewQuestions(raw: string, fallbackType: string, fileName: string): InterviewGroup {
   const { data, body } = parseFrontmatter(raw)
   const type = str(data.type, fallbackType)
   const questions: InterviewQuestion[] = []
   let idx = 0
+  let current: InterviewQuestion | null = null
   for (const line of body.split('\n')) {
     const m = /^\s*[-*]\s+(.+?)\s*$/.exec(line)
     if (m) {
       const text = stripMd(m[1])
       if (text) {
         idx++
-        questions.push({ id: `${type}-${idx}`, type, text })
+        current = { id: `${type}-${idx}`, type, text, answer: '' }
+        questions.push(current)
+      } else {
+        current = null
       }
+      continue
+    }
+    // 题目下方的 `>` 引用块 → 答案（支持多行）
+    const a = /^\s*>\s?(.*)$/.exec(line)
+    if (a && current) {
+      current.answer = current.answer ? `${current.answer}\n${a[1]}` : a[1]
     }
   }
-  return { type, questions }
+  return { type, fileName, questions }
 }
 
 export const interviewGroups: InterviewGroup[] = Object.entries(interviewFiles)
   .map(([path, raw]) => {
-    const fallback = path.split('/').pop()!.replace(/\.md$/i, '')
-    return parseInterviewQuestions(raw, fallback)
+    const fileName = path.split('/').pop()!.replace(/\.md$/i, '')
+    return parseInterviewQuestions(raw, fileName, fileName)
   })
   .filter((g) => g.questions.length > 0)
 
 export const interviewQuestions: InterviewQuestion[] = interviewGroups.flatMap((g) => g.questions)
+
+/** 题目 id → md 预置答案，用于 localStorage 为空时回填 */
+export const interviewSeedAnswers: Record<string, string> = Object.fromEntries(
+  interviewQuestions.filter((q) => q.answer).map((q) => [q.id, q.answer])
+)
 
 export function interviewQuestionById(id: string): InterviewQuestion | undefined {
   return interviewQuestions.find((q) => q.id === id)

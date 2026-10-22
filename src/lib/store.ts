@@ -4,6 +4,7 @@
  * 数据哲学：状态在浏览器。全部落在 localStorage，换机器靠 Git 存 md。
  */
 import { reactive, watch } from 'vue'
+import { interviewSeedAnswers } from './data'
 
 const LS_KEY = 'myos.state.v1'
 
@@ -60,11 +61,19 @@ function load(): AppState {
   const base = defaults()
   try {
     const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return base
-    const saved = JSON.parse(raw) as Partial<AppState>
-    return { ...base, ...saved }
+    const saved = raw ? (JSON.parse(raw) as Partial<AppState>) : {}
+    const merged = { ...base, ...saved }
+    // localStorage 里没有答案时，用 md 里预置的答案回填（不覆盖已有答案）
+    const localAnswers = merged.answers ?? {}
+    for (const [id, ans] of Object.entries(interviewSeedAnswers)) {
+      if (!localAnswers[id] && ans) {
+        localAnswers[id] = ans
+      }
+    }
+    merged.answers = localAnswers
+    return merged
   } catch {
-    return base
+    return { ...base, answers: { ...interviewSeedAnswers } }
   }
 }
 
