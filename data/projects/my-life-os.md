@@ -3,7 +3,7 @@ title: My OS 个人工作台
 emoji: 🪐
 status: 未开始
 stack: [Vue 3, Vite, TypeScript, Markdown, localStorage]
-pitch: Git 当硬盘、md 当数据库的个人控制台，管理学习/项目/创作三条线
+pitch: Git 当硬盘、md 当数据库的个人控制台，管理学习/项目/健康/笔记四条线
 missing: 还没动手，先定下五条线的数据格式
 progress: 0
 period: 2026.09 — 至今
@@ -34,7 +34,6 @@ link: ''
 data/           内容（md + json）
   ├─ agent/     26 周学习计划
   ├─ projects/  自研项目
-  ├─ creator/   视频脚本与口播稿
   ├─ notes/     踩坑本 / 点子
   └─ daily/     每天一句话
 src/lib/        解析 + 渲染 + 状态

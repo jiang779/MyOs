@@ -59,25 +59,9 @@ export interface Project {
   body: string
 }
 
-export type VideoStatus = 'script' | 'record' | 'edit' | 'published'
-
-export interface Video {
-  id: string
-  no: number
-  title: string
-  topic: string
-  status: VideoStatus
-  platform: string
-  publishedAt: string
-  views: number
-  hook: string
-  body: string
-}
-
 export interface SiteConfig {
   owner: string
   startDate: string
-  videoMonthlyGoal: number
   streakGoal: number
   coachTips: string[]
 }
@@ -259,38 +243,6 @@ export const projects: Project[] = Object.entries(projectFiles)
   })
   .sort((a, b) => b.progress - a.progress)
 
-/* ------------------------------ 创作 ------------------------------ */
-
-const videoFiles = rawFiles(
-  import.meta.glob('../../data/creator/video-*.md', { query: '?raw', import: 'default', eager: true })
-)
-
-export const videos: Video[] = Object.entries(videoFiles)
-  .map(([path, raw]) => {
-    const { data, body } = parseFrontmatter(raw)
-    const no = num(/video-(\d+)/.exec(path)?.[1], 0)
-    return {
-      id: `v${no}`,
-      no,
-      title: str(data.title, `第 ${no} 条`),
-      topic: str(data.topic, '未分类'),
-      status: (str(data.status, 'script') as VideoStatus) ?? 'script',
-      platform: str(data.platform, '—'),
-      publishedAt: str(data.publishedAt, ''),
-      views: num(data.views, 0),
-      hook: str(data.hook, firstParagraph(body)),
-      body,
-    }
-  })
-  .sort((a, b) => a.no - b.no)
-
-export const VIDEO_STEPS: { key: VideoStatus; label: string }[] = [
-  { key: 'script', label: '脚本' },
-  { key: 'record', label: '录制' },
-  { key: 'edit', label: '剪辑' },
-  { key: 'published', label: '发布' },
-]
-
 /* ------------------------------ 日志（已下线） ------------------------------
  * 原来的「每日一句 / 踩坑本 / 点子本」与连续输出天数统计已废弃，
  * 数据文件归档在 data/_archive/log-module/。
@@ -404,27 +356,6 @@ export function startOfDay(d: Date): Date {
 export function toISODate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-export interface VideoSummary {
-  published: number
-  goal: number
-  making: number
-  next?: Video
-  monthPublished: number
-}
-
-export function videoSummary(getStatus: (v: Video) => VideoStatus, today = new Date()): VideoSummary {
-  const month = toISODate(today).slice(0, 7)
-  const list = videos.map((v) => ({ ...v, status: getStatus(v) }))
-  const publishedList = list.filter((v) => v.status === 'published')
-  return {
-    published: publishedList.length,
-    goal: config.videoMonthlyGoal,
-    making: list.filter((v) => v.status !== 'published').length,
-    next: list.find((v) => v.status !== 'published'),
-    monthPublished: publishedList.filter((v) => v.publishedAt.startsWith(month)).length,
-  }
 }
 
 /** 今天的教练提示（按天轮换，写死在 config 里，以后交给 AI 生成） */

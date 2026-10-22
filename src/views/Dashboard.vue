@@ -17,10 +17,9 @@ import {
   projects,
   stages,
   toISODate,
-  videoSummary,
   weeks,
 } from '@/lib/data'
-import { isChecked, toggleTask, videoStatus, weekStatus } from '@/lib/store'
+import { isChecked, toggleTask, weekStatus } from '@/lib/store'
 
 const today = new Date()
 const week = currentWeek()!
@@ -33,7 +32,6 @@ const weekProgress = computed(() =>
 
 const dateLabel = `${formatDateCN(toISODate(today))} 星期${'日一二三四五六'[today.getDay()]}`
 const noteCount = notes.length
-const vs = videoSummary((v) => videoStatus(v.id, v.status), today)
 
 const doneWeeks = computed(() => weeks.filter((w) => weekStatus(w.no, w.status) === 'done').length)
 const weekTotal = weeks.length
@@ -91,9 +89,8 @@ const wd = (d: Date) => '星期' + WEEK_CN[d.getDay()]
     </section>
 
     <!-- 指标 -->
-    <div class="grid grid-4 stat-grid mt-20">
+    <div class="grid grid-3 stat-grid mt-20">
       <StatTile icon="note" tone="fire" label="学习笔记" :value="noteCount" unit="篇" hint="按周归位，写一篇算一篇" />
-      <StatTile icon="target" tone="blue" label="视频已发" :value="vs.published" unit="条" :hint="`本月 ${vs.monthPublished} / ${vs.goal} 条`" />
       <StatTile icon="cube" tone="violet" label="自研项目" :value="projects.length" unit="个" :hint="`平均完成度 ${avgProject}%`" />
       <StatTile icon="route" tone="green" label="已完成周" :value="doneWeeks" :unit="`/ ${weekTotal} 周`" hint="36 周 Agent 路线" />
     </div>

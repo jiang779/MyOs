@@ -8,7 +8,6 @@ import { reactive, watch } from 'vue'
 const LS_KEY = 'myos.state.v1'
 
 export type WeekStatus = 'todo' | 'active' | 'done'
-export type VideoStatus = 'script' | 'record' | 'edit' | 'published'
 
 /** 一条「不健康饮食」记录 */
 export interface JunkRecord {
@@ -32,8 +31,6 @@ interface AppState {
   checks: Record<string, boolean>
   /** 周状态覆盖（md 里的是初值） */
   weekStatus: Record<string, WeekStatus>
-  /** 视频状态覆盖 */
-  videoStatus: Record<string, VideoStatus>
   /** 侧栏是否展开（桌面） */
   sidebarOpen: boolean
   /** 不健康饮食记录（按日期倒序） */
@@ -47,7 +44,6 @@ function defaults(): AppState {
     theme: 'light',
     checks: {},
     weekStatus: {},
-    videoStatus: {},
     sidebarOpen: false,
     junkRecords: [],
     junkBackupAt: '',
@@ -126,14 +122,6 @@ export function cycleWeekStatus(week: number, seed: WeekStatus): WeekStatus {
   const next = order[(order.indexOf(cur) + 1) % order.length]
   state.weekStatus[String(week)] = next
   return next
-}
-
-export function videoStatus(id: string, seed: VideoStatus): VideoStatus {
-  return state.videoStatus[id] ?? seed
-}
-
-export function setVideoStatus(id: string, s: VideoStatus) {
-  state.videoStatus[id] = s
 }
 
 /* ------------------------------ 不健康饮食记录 ------------------------------ */
