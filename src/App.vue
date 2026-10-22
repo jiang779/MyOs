@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue'
+import ParticleBackground from '@/components/ParticleBackground.vue'
 </script>
 
 <template>
   <div class="shell">
+    <ParticleBackground />
     <AppSidebar />
     <main class="main">
       <RouterView v-slot="{ Component, route }">

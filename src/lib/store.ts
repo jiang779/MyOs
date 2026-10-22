@@ -32,8 +32,6 @@ interface AppState {
   checks: Record<string, boolean>
   /** 周状态覆盖（md 里的是初值） */
   weekStatus: Record<string, WeekStatus>
-  /** 侧栏是否展开（桌面） */
-  sidebarOpen: boolean
   /** 面试题答案：题目 id → 用户输入的答案文本 */
   answers: Record<string, string>
   /** 面试题作答日期：题目 id → YYYY-MM-DD，用于统计「今日答了几道」 */
@@ -49,7 +47,6 @@ function defaults(): AppState {
     theme: 'light',
     checks: {},
     weekStatus: {},
-    sidebarOpen: false,
     answers: {},
     answerDates: {},
     junkRecords: [],

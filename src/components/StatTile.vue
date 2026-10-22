@@ -15,7 +15,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="card tile fade-up">
+  <div class="card tile" :title="hint || undefined">
     <div class="row between">
       <span class="tile-label">{{ label }}</span>
       <span v-if="icon" class="tile-ico" :class="tone">
@@ -26,7 +26,6 @@ withDefaults(
       {{ value }}<em v-if="unit">{{ unit }}</em>
     </div>
     <slot />
-    <p v-if="hint" class="tile-hint">{{ hint }}</p>
   </div>
 </template>
 
@@ -86,11 +85,5 @@ withDefaults(
   color: var(--text-3);
   margin-left: 3px;
   letter-spacing: 0;
-}
-
-.tile-hint {
-  font-size: 12.5px;
-  color: var(--text-3);
-  margin-top: 2px;
 }
 </style>

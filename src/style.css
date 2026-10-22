@@ -55,7 +55,8 @@
   --gap: 20px;
   --pad-card: 22px;
 
-  --sidebar-w: 84px;
+  --header-h: 60px;
+  --mheader-h: 52px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -175,21 +176,26 @@ ol {
    ============================================================ */
 .shell {
   display: flex;
-  min-height: 100vh;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
 }
 
 .main {
   flex: 1;
   min-width: 0;
-  padding: 40px 44px 72px;
-  max-width: 1240px;
-  margin: 0 auto;
+  min-height: 0;
+  overflow-y: auto;
   width: 100%;
+  max-width: 1240px;
+  align-self: center;
+  padding: 22px 44px 48px;
 }
 
 @media (max-width: 900px) {
   .main {
-    padding: 28px 20px 96px;
+    padding: calc(var(--mheader-h) + 14px) 20px calc(76px + env(safe-area-inset-bottom));
   }
 }
 

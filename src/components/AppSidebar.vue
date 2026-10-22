@@ -18,114 +18,138 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 </script>
 
 <template>
-  <aside class="rail" :class="{ expanded: state.sidebarOpen }">
-    <!-- 顶部：品牌 + 展开/收起按钮（移动端整块隐藏） -->
-    <div class="rail-top">
-      <div class="logo">🪐</div>
-      <div class="brand-text">
-        <b>My OS</b>
-        <span>个人工作台</span>
-      </div>
-      <button
-        class="toggle"
-        :title="state.sidebarOpen ? '收起侧栏' : '展开侧栏'"
-        :aria-label="state.sidebarOpen ? '收起侧栏' : '展开侧栏'"
-        :aria-expanded="state.sidebarOpen"
-        @click="state.sidebarOpen = !state.sidebarOpen"
-      >
-        <AppIcon :name="state.sidebarOpen ? 'close' : 'menu'" :size="18" />
-      </button>
-    </div>
-
-    <nav class="nav">
-      <RouterLink
-        v-for="item in nav"
-        :key="item.to"
-        :to="item.to"
-        class="nav-item"
-        :class="{ active: isActive(item.to) }"
-        :title="item.label"
-      >
-        <AppIcon :name="item.icon" :size="21" />
-        <span class="nav-label">{{ item.label }}</span>
+  <!-- 桌面：顶部固定 Header -->
+  <header class="header">
+    <div class="header-inner">
+      <RouterLink class="brand" to="/" title="返回首页">
+        <span class="brand-logo">🪐</span>
+        <span class="brand-text">
+          <b>My OS</b>
+          <span class="brand-sub">个人工作台</span>
+        </span>
       </RouterLink>
-    </nav>
 
-    <div class="rail-bottom">
+      <nav class="nav" aria-label="主导航">
+        <RouterLink
+          v-for="item in nav"
+          :key="item.to"
+          :to="item.to"
+          class="nav-item"
+          :class="{ active: isActive(item.to) }"
+          :title="item.label"
+        >
+          <AppIcon :name="item.icon" :size="18" />
+          <span class="nav-label">{{ item.label }}</span>
+        </RouterLink>
+      </nav>
+
+      <div class="header-right">
+        <button
+          class="icon-btn"
+          type="button"
+          :title="state.theme === 'light' ? '切到深色' : '切到浅色'"
+          :aria-label="state.theme === 'light' ? '切到深色' : '切到浅色'"
+          @click="toggleTheme"
+        >
+          <AppIcon :name="state.theme === 'light' ? 'moon' : 'sun'" :size="18" />
+        </button>
+        <div class="avatar" :title="config.owner">{{ config.owner.slice(0, 1).toUpperCase() }}</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 移动端：顶部栏 -->
+  <header class="mheader">
+    <RouterLink class="brand" to="/" title="返回首页">
+      <span class="brand-logo">🪐</span>
+      <span class="brand-text">
+        <b>My OS</b>
+        <span class="brand-sub">个人工作台</span>
+      </span>
+    </RouterLink>
+    <div class="header-right">
       <button
-        class="nav-item as-btn"
+        class="icon-btn"
+        type="button"
         :title="state.theme === 'light' ? '切到深色' : '切到浅色'"
+        :aria-label="state.theme === 'light' ? '切到深色' : '切到浅色'"
         @click="toggleTheme"
       >
-        <AppIcon :name="state.theme === 'light' ? 'moon' : 'sun'" :size="20" />
-        <span class="nav-label">{{ state.theme === 'light' ? '深色模式' : '浅色模式' }}</span>
+        <AppIcon :name="state.theme === 'light' ? 'moon' : 'sun'" :size="18" />
       </button>
       <div class="avatar" :title="config.owner">{{ config.owner.slice(0, 1).toUpperCase() }}</div>
     </div>
-  </aside>
+  </header>
+
+  <!-- 移动端：底部 Tab -->
+  <nav class="tabbar" aria-label="底部导航">
+    <RouterLink
+      v-for="item in nav"
+      :key="item.to"
+      :to="item.to"
+      class="tab-item"
+      :class="{ active: isActive(item.to) }"
+      :title="item.label"
+    >
+      <AppIcon :name="item.icon" :size="20" />
+      <span class="tab-label">{{ item.label }}</span>
+    </RouterLink>
+    <button
+      class="tab-item"
+      type="button"
+      :title="state.theme === 'light' ? '切到深色' : '切到浅色'"
+      @click="toggleTheme"
+    >
+      <AppIcon :name="state.theme === 'light' ? 'moon' : 'sun'" :size="20" />
+      <span class="tab-label">主题</span>
+    </button>
+  </nav>
 </template>
 
 <style scoped>
-/* ---------------- 桌面：迷你导轨，宽度由「按钮」切换，不跟随鼠标 ---------------- */
-.rail {
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  height: 100vh;
-  width: 88px;
+.header {
+  flex: none;
+  height: var(--header-h);
+  z-index: 20;
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-inner {
+  height: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 44px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.brand {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px 10px 18px;
-  background: var(--surface);
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  border-right: 1px solid var(--line);
-  transition: width 0.32s var(--ease);
-  z-index: 20;
-}
-
-.rail.expanded {
-  width: 226px;
-}
-
-.rail-top {
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding-bottom: 8px;
+  color: var(--text);
 }
 
-.rail.expanded .rail-top {
-  flex-direction: row;
-  justify-content: flex-start;
-}
-
-.logo {
-  width: 40px;
-  height: 40px;
+.brand-logo {
+  width: 36px;
+  height: 36px;
   flex: none;
   display: grid;
   place-items: center;
-  font-size: 20px;
-  border-radius: 13px;
-  background: var(--grad-blue);
-  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.32);
+  font-size: 19px;
+  border-radius: 11px;
+  background: var(--accent-soft);
 }
 
 .brand-text {
-  display: none;
-  flex-direction: column;
-  line-height: 1.25;
-  min-width: 0;
-  flex: 1;
-}
-
-.rail.expanded .brand-text {
   display: flex;
+  flex-direction: column;
+  line-height: 1.15;
 }
 
 .brand-text b {
@@ -133,98 +157,78 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
   letter-spacing: -0.02em;
 }
 
-.brand-text span {
-  font-size: 11.5px;
+.brand-sub {
+  font-size: 11px;
   color: var(--text-3);
 }
 
-.toggle {
-  width: 38px;
-  height: 38px;
+.nav {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  transition: background 0.22s var(--ease), color 0.22s var(--ease);
+}
+
+.nav-item:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.nav-item:active {
+  transform: scale(0.97);
+}
+
+.nav-item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.header-right {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 11px;
   color: var(--text-2);
   background: var(--surface-2);
   border: 1px solid var(--line);
   transition: all 0.22s var(--ease);
 }
 
-.toggle:hover {
+.icon-btn:hover {
   color: var(--text);
   background: var(--surface-hover);
 }
 
-.toggle:active {
-  transform: scale(0.94);
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 11px;
-  border-radius: 14px;
-  color: var(--text-3);
-  font-size: 14px;
-  font-weight: 550;
-  justify-content: center;
-  transition: background 0.22s var(--ease), color 0.22s var(--ease);
-}
-
-.nav-label {
-  display: none;
-  white-space: nowrap;
-}
-
-.rail.expanded .nav-item {
-  justify-content: flex-start;
-}
-
-.rail.expanded .nav-label {
-  display: block;
-}
-
-.nav-item:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.nav-item.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.18);
-}
-
-.rail-bottom {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.rail.expanded .rail-bottom {
-  align-items: flex-start;
-}
-
-.as-btn {
-  cursor: pointer;
+.icon-btn:active {
+  transform: scale(0.93);
 }
 
 .avatar {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -236,73 +240,105 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
   flex: none;
 }
 
-/* ---------------- 移动端：底部导航，恒定满宽 ---------------- */
-@media (max-width: 900px) {
-  .rail,
-  .rail.expanded {
-    position: fixed;
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100% !important;
-    height: auto;
-    max-width: 100%;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    border-right: 0;
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.08);
-    transition: none;
-  }
+/* ---------------- 移动端：顶部栏 / 底部 Tab ---------------- */
+.mheader {
+  display: none;
+}
 
-  .rail-top,
-  .avatar {
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .header {
     display: none;
   }
 
-  .nav {
-    flex: 1;
-    flex-direction: row;
-    justify-content: space-around;
-    gap: 0;
+  .mheader {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    height: var(--mheader-h);
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid var(--line);
   }
 
-  .nav-item {
+  .mheader .brand {
+    gap: 8px;
+  }
+  .mheader .brand-logo {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+    border-radius: 9px;
+  }
+  .mheader .brand-text b {
+    font-size: 13px;
+  }
+  .mheader .brand-sub {
+    font-size: 10.5px;
+  }
+  .mheader .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+  .mheader .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    align-items: stretch;
+    justify-content: space-around;
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.06);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .tab-item {
     flex: 1;
+    display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 3px;
     padding: 6px 2px;
     font-size: 10.5px;
-    max-width: 92px;
+    color: var(--text-3);
+    border-radius: 10px;
+    transition: color 0.22s var(--ease);
   }
 
-  .rail.expanded .nav-item {
-    justify-content: center;
+  .tab-item:active {
+    transform: scale(0.96);
   }
 
-  .nav-label,
-  .rail.expanded .nav-label {
-    display: block;
+  .tab-item.active {
+    color: var(--accent);
   }
 
-  .rail-bottom {
-    margin: 0;
-    width: auto;
-    flex: none;
-    flex-direction: row;
-  }
-
-  .rail-bottom .nav-item {
-    width: 46px;
-    flex: none;
-  }
-
-  .rail-bottom .nav-label {
-    display: none;
+  .tab-label {
+    line-height: 1;
+    white-space: nowrap;
   }
 }
 </style>
