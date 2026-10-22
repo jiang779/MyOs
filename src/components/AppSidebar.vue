@@ -8,6 +8,7 @@ const nav = [
   { to: '/', label: '看板', icon: 'grid' },
   { to: '/agent', label: 'Agent', icon: 'route' },
   { to: '/projects', label: '项目', icon: 'cube' },
+  { to: '/interview', label: '面试题', icon: 'book' },
   { to: '/health', label: '健康', icon: 'heart' },
   { to: '/notes', label: '笔记', icon: 'note' },
 ]

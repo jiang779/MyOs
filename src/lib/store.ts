@@ -33,6 +33,10 @@ interface AppState {
   weekStatus: Record<string, WeekStatus>
   /** 侧栏是否展开（桌面） */
   sidebarOpen: boolean
+  /** 面试题答案：题目 id → 用户输入的答案文本 */
+  answers: Record<string, string>
+  /** 面试题作答日期：题目 id → YYYY-MM-DD，用于统计「今日答了几道」 */
+  answerDates: Record<string, string>
   /** 不健康饮食记录（按日期倒序） */
   junkRecords: JunkRecord[]
   /** 最近一次导出备份的时间（ISO），空串 = 从未备份 */
@@ -45,6 +49,8 @@ function defaults(): AppState {
     checks: {},
     weekStatus: {},
     sidebarOpen: false,
+    answers: {},
+    answerDates: {},
     junkRecords: [],
     junkBackupAt: '',
   }
@@ -122,6 +128,46 @@ export function cycleWeekStatus(week: number, seed: WeekStatus): WeekStatus {
   const next = order[(order.indexOf(cur) + 1) % order.length]
   state.weekStatus[String(week)] = next
   return next
+}
+
+/* ------------------------------ 面试题答案 ------------------------------ */
+
+/** YYYY-MM-DD，避免依赖 data.ts 的 toISODate 造成循环引用 */
+function todayISO(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+export function getAnswer(id: string): string {
+  return state.answers[id] ?? ''
+}
+
+/** 保存答案，同时记录作答日期为今天 */
+export function setAnswer(id: string, text: string) {
+  const t = text.trim()
+  if (t) {
+    state.answers[id] = t
+    state.answerDates[id] = todayISO()
+  } else {
+    // 清空答案时一并清掉日期记录
+    delete state.answers[id]
+    delete state.answerDates[id]
+  }
+}
+
+export function removeAnswer(id: string) {
+  delete state.answers[id]
+  delete state.answerDates[id]
+}
+
+/** 今天已答的题目数量（用于「每天背 6 道」任务） */
+export function todayAnsweredCount(today = new Date()): number {
+  const iso = (() => {
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
+  })()
+  return Object.values(state.answerDates).filter((d) => d === iso).length
 }
 
 /* ------------------------------ 不健康饮食记录 ------------------------------ */

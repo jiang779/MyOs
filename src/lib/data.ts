@@ -243,6 +243,58 @@ export const projects: Project[] = Object.entries(projectFiles)
   })
   .sort((a, b) => b.progress - a.progress)
 
+/* ------------------------------ 面试题 ------------------------------ */
+
+export interface InterviewQuestion {
+  /** 题目 id：类型 + 序号 */
+  id: string
+  /** 所属类型 */
+  type: string
+  /** 题目内容 */
+  text: string
+}
+
+export interface InterviewGroup {
+  type: string
+  questions: InterviewQuestion[]
+}
+
+const interviewFiles = rawFiles(
+  import.meta.glob('../../data/interview/*.md', { query: '?raw', import: 'default', eager: true })
+)
+
+/** 解析面试题 md：frontmatter.type = 类型名，正文为 `- 题目` 列表 */
+function parseInterviewQuestions(raw: string, fallbackType: string): InterviewGroup {
+  const { data, body } = parseFrontmatter(raw)
+  const type = str(data.type, fallbackType)
+  const questions: InterviewQuestion[] = []
+  let idx = 0
+  for (const line of body.split('\n')) {
+    const m = /^\s*[-*]\s+(.+?)\s*$/.exec(line)
+    if (m) {
+      const text = stripMd(m[1])
+      if (text) {
+        idx++
+        questions.push({ id: `${type}-${idx}`, type, text })
+      }
+    }
+  }
+  return { type, questions }
+}
+
+export const interviewGroups: InterviewGroup[] = Object.entries(interviewFiles)
+  .map(([path, raw]) => {
+    const fallback = path.split('/').pop()!.replace(/\.md$/i, '')
+    return parseInterviewQuestions(raw, fallback)
+  })
+  .filter((g) => g.questions.length > 0)
+
+export const interviewQuestions: InterviewQuestion[] = interviewGroups.flatMap((g) => g.questions)
+
+export function interviewQuestionById(id: string): InterviewQuestion | undefined {
+  return interviewQuestions.find((q) => q.id === id)
+}
+
 /* ------------------------------ 日志（已下线） ------------------------------
  * 原来的「每日一句 / 踩坑本 / 点子本」与连续输出天数统计已废弃，
  * 数据文件归档在 data/_archive/log-module/。

@@ -13,13 +13,14 @@ import {
   dietTodayTomorrow,
   formatDateCN,
   greeting,
+  interviewQuestions,
   notes,
   projects,
   stages,
   toISODate,
   weeks,
 } from '@/lib/data'
-import { isChecked, toggleTask, weekStatus } from '@/lib/store'
+import { isChecked, toggleTask, weekStatus, getAnswer, todayAnsweredCount } from '@/lib/store'
 
 const today = new Date()
 const week = currentWeek()!
@@ -32,6 +33,10 @@ const weekProgress = computed(() =>
 
 const dateLabel = `${formatDateCN(toISODate(today))} 星期${'日一二三四五六'[today.getDay()]}`
 const noteCount = notes.length
+
+const totalQ = interviewQuestions.length
+const doneQ = interviewQuestions.filter((q) => !!getAnswer(q.id)).length
+const todayQ = todayAnsweredCount(today)
 
 const doneWeeks = computed(() => weeks.filter((w) => weekStatus(w.no, w.status) === 'done').length)
 const weekTotal = weeks.length
@@ -189,6 +194,35 @@ const wd = (d: Date) => '星期' + WEEK_CN[d.getDay()]
       </section>
     </div>
 
+    <!-- 面试题进度 -->
+    <section class="card fade-up interview-card mt-20">
+      <div class="card-head">
+        <h2 class="card-title"><span class="ico">📝</span> 面试题</h2>
+        <RouterLink to="/interview" class="card-note">去刷题 →</RouterLink>
+      </div>
+      <div class="interview-body">
+        <div class="row between" style="gap: 16px; flex-wrap: wrap">
+          <div class="interview-stat">
+            <span class="tiny muted">题库总数</span>
+            <b class="interview-num">{{ totalQ }}<em>题</em></b>
+          </div>
+          <div class="interview-stat">
+            <span class="tiny muted">已答</span>
+            <b class="interview-num">{{ doneQ }}<em>/ {{ totalQ }}</em></b>
+          </div>
+          <div class="interview-stat">
+            <span class="tiny muted">今日任务（6 道）</span>
+            <b class="interview-num">{{ todayQ }}<em>/ 6</em></b>
+          </div>
+        </div>
+        <ProgressBar
+          :value="totalQ ? (doneQ / totalQ) * 100 : 0"
+          tone="violet"
+          :height="7"
+        />
+      </div>
+    </section>
+
     <SideSheet
       :open="sheetOpen"
       :kicker="`第 ${week.no} 周 · ${week.stageTitle}`"
@@ -283,6 +317,39 @@ const wd = (d: Date) => '星期' + WEEK_CN[d.getDay()]
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.interview-card {
+  padding: 22px 24px;
+}
+
+.interview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.interview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 90px;
+}
+
+.interview-num {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.interview-num em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--text-3);
+  font-weight: 550;
+  margin-left: 2px;
 }
 
 .meal-card {

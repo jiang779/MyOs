@@ -1,0 +1,32 @@
+---
+type: Vue + TypeScript
+---
+
+- Vue2 和 Vue3 响应式原理区别，Object.defineProperty vs Proxy 优缺点
+- Vue3 为什么改用 Proxy，相比 defineProperty 解决了哪些问题？
+- Vue3 Pinia 对比 Vuex，区别是什么，Pinia 解决 Vuex 哪些痛点？
+- setup 语法糖原理，defineProps、defineEmits、defineExpose 底层理解
+- Vue3 生命周期，和 Vue2 的差异，onMounted 注意事项
+- Vue3 组件通信的所有方式，分别适合什么场景
+- computed 和 watch 的区别，各自使用场景
+- watch 和 watchEffect 的区别
+- Vue3 中 ref 和 reactive 区别，reactive 为什么不能直接整体赋值
+- toRef 和 toRefs 的作用，解决什么问题
+- Vue 中 v-if 和 v-show 区别，使用场景
+- key 的作用，key 用 index 会带来什么问题
+- Vue nextTick 原理，什么时候需要用 nextTick
+- Vue 组件递归、动态组件、异步组件如何使用
+- keep-alive 原理，include/exclude 如何实现缓存控制
+- 虚拟 DOM diff 算法的核心思路，Vue3 diff 相比 Vue2 做了哪些优化
+- Vue 的编译过程：template → AST → render 函数
+- 响应式数据依赖收集和触发更新的完整流程
+- slot 原理，默认插槽、具名插槽、作用域插槽的区别
+- provide/inject 原理，如何实现响应式
+- Vue Router 两种模式（hash/history）原理，导航守卫有哪些
+- Vue3 的 Teleport、Suspense 是做什么的
+- TypeScript 中 interface 和 type 的区别
+- TS 泛型使用场景，项目中哪些地方用到泛型？
+- TS 类型体操：Partial、Required、Pick、Omit 原理和使用场景
+- TS 中 any、unknown、never 的区别
+- Vite 相比 webpack 构建原理，为什么启动更快？
+- Vite 生产构建流程，rollup 做了哪些工作
