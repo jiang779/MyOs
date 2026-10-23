@@ -1,0 +1,10 @@
+{
+  "app": "my-os",
+  "kind": "interview-progress",
+  "version": 1,
+  "exportedAt": "2026-10-23T01:10:16.305Z",
+  "total": 191,
+  "done": {
+    "简历深挖-1": true
+  }
+}

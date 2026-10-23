@@ -13,6 +13,8 @@ import {
   dietTodayTomorrow,
   formatDateCN,
   greeting,
+  interviewGroups,
+  interviewNotes,
   interviewQuestions,
   notes,
   projects,
@@ -20,7 +22,7 @@ import {
   toISODate,
   weeks,
 } from '@/lib/data'
-import { isChecked, toggleTask, weekStatus, getAnswer, todayAnsweredCount } from '@/lib/store'
+import { isChecked, toggleTask, weekStatus } from '@/lib/store'
 
 const today = new Date()
 const week = currentWeek()!
@@ -35,8 +37,8 @@ const dateLabel = `${formatDateCN(toISODate(today))} 星期${'日一二三四五
 const noteCount = notes.length
 
 const totalQ = interviewQuestions.length
-const doneQ = interviewQuestions.filter((q) => !!getAnswer(q.id)).length
-const todayQ = todayAnsweredCount(today)
+const answerCount = interviewNotes.length
+const typeCount = interviewGroups.length
 
 const doneWeeks = computed(() => weeks.filter((w) => weekStatus(w.no, w.status) === 'done').length)
 const weekTotal = weeks.length
@@ -214,15 +216,15 @@ function goToGroup(i: number) {
                 <b class="interview-num">{{ totalQ }}<em>题</em></b>
               </div>
               <div class="interview-stat">
-                <span class="tiny muted">已答</span>
-                <b class="interview-num">{{ doneQ }}<em>/ {{ totalQ }}</em></b>
+                <span class="tiny muted">答案笔记</span>
+                <b class="interview-num">{{ answerCount }}<em>篇</em></b>
               </div>
               <div class="interview-stat">
-                <span class="tiny muted">今日任务（6 道）</span>
-                <b class="interview-num">{{ todayQ }}<em>/ 6</em></b>
+                <span class="tiny muted">类型</span>
+                <b class="interview-num">{{ typeCount }}<em>类</em></b>
               </div>
             </div>
-            <ProgressBar :value="totalQ ? (doneQ / totalQ) * 100 : 0" tone="violet" :height="7" />
+            <ProgressBar :value="totalQ ? (answerCount / totalQ) * 100 : 0" tone="violet" :height="7" />
           </div>
         </section>
       </div>

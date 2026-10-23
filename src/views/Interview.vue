@@ -1,263 +1,306 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import PageHead from '@/components/PageHead.vue'
-import ProgressBar from '@/components/ProgressBar.vue'
 import SideSheet from '@/components/SideSheet.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import { interviewGroups, interviewQuestions, type InterviewQuestion } from '@/lib/data'
-import { getAnswer, setAnswer, removeAnswer, todayAnsweredCount } from '@/lib/store'
+import ProgressBar from '@/components/ProgressBar.vue'
+import { interviewGroups, interviewQuestions, interviewNotesForType, type InterviewGroup } from '@/lib/data'
+import { isInterviewDone, importInterviewDone, state, toggleInterviewDone } from '@/lib/store'
 
-const DAILY_GOAL = 6
+/* 类型卡展开/收起：默认全部收起（同 agent 阶段卡） */
+const expanded = ref<Set<string>>(new Set())
+const isExpanded = (k: string) => expanded.value.has(k)
+function toggleType(k: string) {
+  const next = new Set(expanded.value)
+  next.has(k) ? next.delete(k) : next.add(k)
+  expanded.value = next
+}
 
-const today = new Date()
-const todayCount = todayAnsweredCount(today)
+/* 抽屉：某类型的答案笔记 */
+const active = ref<InterviewGroup | null>(null)
+const openNotes = (g: InterviewGroup) => {
+  active.value = g
+}
+const activeNotes = computed(() => (active.value ? interviewNotesForType(active.value.fileName) : []))
+const noteCountOf = (fileName: string) => interviewNotesForType(fileName).length
+/** 笔记目录名，给空状态里的提示用 */
+const noteDir = (fileName: string) => `data/interview-notes/${fileName}/`
 
-const active = ref<InterviewQuestion | undefined>()
-const draft = ref('')
+/* 答题进度：记录哪道题完成了 + 导出/导入备份（状态落到项目 json，不怕清 localStorage） */
+const totalCount = interviewQuestions.length
+const doneCount = computed(() => interviewQuestions.filter((q) => isInterviewDone(q.id)).length)
+
 const notice = ref('')
-/** 收起的类型集合 */
-const collapsed = ref<Set<string>>(new Set())
 let noticeTimer: number | undefined
-
-function toggleGroup(type: string) {
-  const next = new Set(collapsed.value)
-  if (next.has(type)) next.delete(type)
-  else next.add(type)
-  collapsed.value = next
-}
-
-function isCollapsed(type: string) {
-  return collapsed.value.has(type)
-}
-
 function flash(msg: string) {
   notice.value = msg
   window.clearTimeout(noticeTimer)
-  noticeTimer = window.setTimeout(() => (notice.value = ''), 2400)
+  noticeTimer = window.setTimeout(() => (notice.value = ''), 3200)
 }
 
-/** 某道题是否已作答 */
-function answered(id: string): boolean {
-  return !!getAnswer(id)
-}
+const fileInput = ref<HTMLInputElement | null>(null)
 
-function openQuestion(q: InterviewQuestion) {
-  active.value = q
-  draft.value = getAnswer(q.id)
-}
-
-function save() {
-  if (!active.value) return
-  setAnswer(active.value.id, draft.value)
-  flash(draft.value.trim() ? '已保存答案' : '已清空答案')
-}
-
-function clearAnswer() {
-  if (!active.value) return
-  removeAnswer(active.value.id)
-  draft.value = ''
-  flash('已清空答案')
-}
-
-/** 已答题目总数 */
-const answeredTotal = computed(() => interviewQuestions.filter((q) => answered(q.id)).length)
-
-/** 导出答案为「题目 + 答案」格式，可直接覆盖 data/interview/*.md */
-async function exportAnswers() {
-  const blocks: string[] = []
-  for (const g of interviewGroups) {
-    blocks.push(renderGroup(g))
+function exportProgress() {
+  const payload = {
+    app: 'my-os',
+    kind: 'interview-progress',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    total: totalCount,
+    done: state.interviewDone,
   }
-  const text = blocks
-    .map((b, i) => `<!-- ===== ${interviewGroups[i].fileName}.md ===== -->\n${b}`)
-    .join('\n\n')
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `interview-progress-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  flash(`已导出 ${doneCount.value} 题进度`)
+}
 
+async function importProgress(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
   try {
-    await navigator.clipboard.writeText(text)
-    flash('已复制全部（题目+答案），按类型覆盖到 data/interview/*.md')
+    const parsed: unknown = JSON.parse(await file.text())
+    const rec = (parsed as { done?: unknown } | null)?.done ?? parsed
+    const n = importInterviewDone(rec)
+    flash(n > 0 ? `已导入 ${n} 题完成进度` : '没有新进度（题目都已完成）')
   } catch {
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'interview-questions.md'
-    a.click()
-    URL.revokeObjectURL(url)
-    flash('已下载全部（题目+答案）')
-  }
-}
-
-/** 渲染单个类型为 md 文本 */
-function renderGroup(g: { type: string; questions: { text: string; id: string }[] }): string {
-  const lines: string[] = ['---', `type: ${g.type}`, '---', '']
-  for (const q of g.questions) {
-    lines.push(`- ${q.text}`)
-    const ans = getAnswer(q.id)
-    if (ans) {
-      for (const al of ans.split('\n')) {
-        lines.push(`  > ${al}`)
-      }
-    }
-  }
-  return lines.join('\n')
-}
-
-/** 只导出单个类型，直接复制可覆盖对应文件 */
-async function exportGroup(g: { type: string; fileName: string; questions: { text: string; id: string }[] }) {
-  const text = renderGroup(g)
-  try {
-    await navigator.clipboard.writeText(text)
-    flash(`已复制「${g.type}」，覆盖到 ${g.fileName}.md`)
-  } catch {
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${g.fileName}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-    flash(`已下载 ${g.fileName}.md`)
+    flash('这个文件读不出来，请选导出的 JSON 进度文件')
+  } finally {
+    input.value = ''
   }
 }
 </script>
 
 <template>
   <div>
-    <PageHead kicker="面试题库 · 按类型分组" title="面试题" sub="点一道题，写下你的答案。不校验对错，写下来就是背过了。">
+    <PageHead
+      kicker="面试题库 · 按类型分组"
+      title="面试题"
+      sub="题目在 data/interview/*.md，答案一行行写在 data/interview-notes/<类型>/ 里，手动加 md 即自动出现。"
+    >
       <template #actions>
-        <button class="btn ghost sm" @click="exportAnswers" :disabled="!answeredTotal">
-          <AppIcon name="download" :size="15" />
-          导出答案
-        </button>
+        <span class="pill">{{ interviewQuestions.length }} 题</span>
       </template>
     </PageHead>
 
-    <!-- 每日任务 -->
-    <section class="card fade-up daily-card">
-      <div class="row between">
-        <div class="col" style="gap: 6px">
-          <span class="page-kicker">今日任务</span>
-          <b class="daily-title">背 {{ DAILY_GOAL }} 道题</b>
-          <span class="tiny muted">今天答过的题都算，不限定哪 {{ DAILY_GOAL }} 道</span>
+    <!-- 类型卡：阶段卡样式，题目直接铺开 -->
+    <section
+      v-for="(g, idx) in interviewGroups"
+      :key="g.fileName"
+      class="card stage-card fade-up"
+      :class="{ collapsed: !isExpanded(g.fileName) }"
+    >
+      <header
+        class="stage-head"
+        role="button"
+        tabindex="0"
+        :aria-expanded="isExpanded(g.fileName)"
+        @click="toggleType(g.fileName)"
+        @keydown.enter.prevent="toggleType(g.fileName)"
+        @keydown.space.prevent="toggleType(g.fileName)"
+      >
+        <div class="stage-no">{{ idx + 1 }}</div>
+        <div class="col grow">
+          <b class="stage-title">{{ g.type }}</b>
+          <span class="tiny muted">共 {{ g.questions.length }} 题</span>
         </div>
-        <div class="daily-num">
-          <b>{{ todayCount }}</b><em>/ {{ DAILY_GOAL }}</em>
-        </div>
-      </div>
-      <ProgressBar
-        :value="Math.min(100, (todayCount / DAILY_GOAL) * 100)"
-        :tone="todayCount >= DAILY_GOAL ? 'green' : 'fire'"
-        :height="8"
-      />
-      <p v-if="todayCount >= DAILY_GOAL" class="tiny ok mt-10">今日任务完成，可以歇了 🎉</p>
-    </section>
+        <button
+          class="note-btn"
+          :class="{ none: !noteCountOf(g.fileName) }"
+          @click.stop="openNotes(g)"
+        >
+          <AppIcon name="note" :size="13" />
+          <span>查看笔记</span>
+          <span class="note-n">{{ noteCountOf(g.fileName) }}</span>
+        </button>
+        <span class="stage-chev" :class="{ open: isExpanded(g.fileName) }">
+          <AppIcon name="chevron" :size="18" />
+        </span>
+      </header>
 
-    <!-- 题库：按类型分组 -->
-    <div class="col mt-20" style="gap: 20px">
-      <section v-for="g in interviewGroups" :key="g.type" class="card fade-up">
-        <div class="card-head group-head" @click="toggleGroup(g.type)">
-          <h2 class="card-title"><span class="ico">📚</span> {{ g.type }}</h2>
-          <div class="row" style="gap: 10px">
-            <span class="card-note">
-              {{ g.questions.filter((q) => answered(q.id)).length }}/{{ g.questions.length }} 已答
-            </span>
-            <button
-              class="btn ghost sm export-btn"
-              title="复制本类题目+答案"
-              @click.stop="exportGroup(g)"
-            >
-              <AppIcon name="download" :size="14" />
-              复制本类
-            </button>
-            <AppIcon
-              name="chevron"
-              :size="16"
-              class="chevron"
-              :class="{ open: !isCollapsed(g.type) }"
-            />
-          </div>
-        </div>
-        <Transition name="expand">
-          <ul v-show="!isCollapsed(g.type)" class="q-list">
+      <div class="stage-body" :class="{ open: isExpanded(g.fileName) }">
+        <div class="stage-body-inner">
+          <ul class="q-list">
             <li
               v-for="(q, i) in g.questions"
               :key="q.id"
               class="q-item"
-              :class="{ done: answered(q.id) }"
-              @click="openQuestion(q)"
+              :class="{ done: isInterviewDone(q.id) }"
+              @click="toggleInterviewDone(q.id)"
             >
               <span class="q-no">{{ String(i + 1).padStart(2, '0') }}</span>
               <span class="q-text">{{ q.text }}</span>
-              <span class="q-mark">{{ answered(q.id) ? '✓' : '→' }}</span>
+              <button
+                class="q-check"
+                :class="{ on: isInterviewDone(q.id) }"
+                type="button"
+                :aria-label="isInterviewDone(q.id) ? '取消完成' : '标记完成'"
+                @click.stop="toggleInterviewDone(q.id)"
+              >
+                <AppIcon v-if="isInterviewDone(q.id)" name="check" :size="12" />
+              </button>
             </li>
           </ul>
-        </Transition>
-      </section>
-    </div>
+        </div>
+      </div>
+    </section>
 
-    <!-- 答题侧栏 -->
+    <div v-if="!interviewGroups.length" class="empty">还没有面试题。</div>
+
+    <!-- 某类型的答案笔记抽屉 -->
     <SideSheet
       :open="!!active"
       :kicker="active?.type"
-      :title="active?.text"
-      @close="active = undefined"
+      :title="active ? `${active.type} · 答案笔记` : ''"
+      @close="active = null"
     >
       <template v-if="active">
-        <div class="answer-area">
-          <label class="tiny muted">写下你的答案（不校验对错）</label>
-          <textarea
-            v-model="draft"
-            class="answer-input"
-            placeholder="把你想到的写下来，想到多少写多少……"
-            rows="12"
-          />
-          <div class="row between mt-14">
-            <button v-if="answered(active.id)" class="btn ghost sm" @click="clearAnswer">
-              清空答案
-            </button>
-            <span v-else></span>
-            <button class="btn primary sm" @click="save">
-              <AppIcon name="check" :size="14" />
-              保存答案
-            </button>
-          </div>
+        <ul v-if="activeNotes.length" class="note-list">
+          <li v-for="n in activeNotes" :key="n.slug">
+            <RouterLink
+              class="note-item"
+              :to="{ name: 'interview-note', params: { type: active!.fileName, slug: n.slug } }"
+            >
+              <span class="note-ico"><AppIcon name="note" :size="15" /></span>
+              <span class="col grow" style="min-width: 0; gap: 3px">
+                <b class="note-name">{{ n.title }}</b>
+                <span class="tiny muted">
+                  {{ n.date || '未标日期' }}{{ n.tags.length ? ' · ' + n.tags.join(' / ') : '' }}
+                </span>
+              </span>
+              <AppIcon name="arrow" :size="15" class="note-go" />
+            </RouterLink>
+          </li>
+        </ul>
+
+        <div v-else class="note-empty">
+          <span class="note-empty-ico"><AppIcon name="note" :size="26" /></span>
+          <b>这一类型还没有答案笔记</b>
+          <p class="tiny muted">
+            在项目的 <code>{{ noteDir(active.fileName) }}</code> 目录下新建一个
+            <code>.md</code> 文件就行，文件名就是题目，内容写你的答案。
+          </p>
         </div>
       </template>
     </SideSheet>
 
-    <!-- 轻提示 -->
-    <Transition name="toast">
-      <div v-if="notice" class="toast">{{ notice }}</div>
-    </Transition>
+    <!-- 答题进度：导出/导入备份 -->
+    <section class="card mt-20 fade-up">
+      <div class="card-head">
+        <h2 class="card-title"><span class="ico">📝</span> 答题进度</h2>
+        <span class="card-note">{{ doneCount }}/{{ totalCount }} 题完成</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <ProgressBar :value="totalCount ? (doneCount / totalCount) * 100 : 0" tone="violet" :height="7" />
+      </div>
+      <p class="tiny muted progress-tip">
+        进度默认存在浏览器里，清 localStorage 或换设备会丢。点「导出进度」把 JSON 存到项目
+        <code>data/</code> 目录并 git 提交，「导入恢复」随时拿回来。
+      </p>
+      <div class="row wrap progress-actions">
+        <button class="btn sm" @click="exportProgress">导出进度</button>
+        <button class="btn ghost sm" @click="fileInput?.click()">导入恢复</button>
+        <input ref="fileInput" type="file" accept="application/json,.json" hidden @change="importProgress" />
+        <span v-if="notice" class="notice">{{ notice }}</span>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.daily-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* ---------------- 类型卡（阶段卡） ---------------- */
+.stage-card {
+  margin-top: 16px;
+  padding: 16px 22px;
 }
 
-.daily-title {
-  font-size: 20px;
+.stage-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--r-md);
+  transition: margin-bottom 0.35s var(--ease);
+}
+
+.stage-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}
+
+.stage-card.collapsed .stage-head {
+  margin-bottom: 0;
+}
+
+.stage-chev {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  transition: transform 0.35s var(--ease), color 0.3s var(--ease), background 0.3s var(--ease);
+}
+
+.stage-head:hover .stage-chev {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.stage-chev.open {
+  transform: rotate(180deg);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.stage-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s var(--ease);
+}
+
+.stage-body.open {
+  grid-template-rows: 1fr;
+}
+
+.stage-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.stage-no {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 680;
+  color: #fff;
+  background: var(--grad-blue);
+  box-shadow: 0 6px 16px rgba(10, 132, 255, 0.28);
+}
+
+.stage-title {
+  font-size: 15px;
+  font-weight: 660;
   letter-spacing: -0.02em;
 }
 
-.daily-num {
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-.daily-num em {
-  font-style: normal;
-  font-size: 15px;
-  color: var(--text-3);
-  font-weight: 550;
-  margin-left: 2px;
-}
-
+/* ---------------- 题目列表（直接铺开） ---------------- */
 .q-list {
   list-style: none;
   padding: 0;
@@ -274,11 +317,21 @@ async function exportGroup(g: { type: string; fileName: string; questions: { tex
   padding: 12px 14px;
   border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s var(--ease);
 }
 
 .q-item:hover {
   background: var(--surface-2);
+}
+
+.q-item.done .q-text {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.q-item.done .q-no {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: rgba(10, 132, 255, 0.25);
 }
 
 .q-no {
@@ -303,116 +356,223 @@ async function exportGroup(g: { type: string; fileName: string; questions: { tex
   color: var(--text);
 }
 
-.q-mark {
+.q-check {
   flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
-  font-size: 13px;
-  font-weight: 650;
+  border-radius: 7px;
+  border: 1.5px solid var(--line-strong);
+  color: #fff;
+  background: transparent;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.q-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------------- 查看笔记入口（放类型卡头部） ---------------- */
+.note-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  margin-left: auto;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(10, 132, 255, 0.2);
+  transition: filter 0.25s var(--ease), transform 0.2s var(--ease);
+}
+
+.note-btn:hover {
+  filter: brightness(1.04);
+}
+
+.note-btn:active {
+  transform: scale(0.985);
+}
+
+.note-btn.none {
   color: var(--text-3);
   background: var(--surface-2);
-  transition: all 0.22s var(--ease);
+  border-color: var(--line);
 }
 
-.q-item.done .q-no {
-  background: var(--accent-soft);
-  border-color: rgba(10, 132, 255, 0.22);
-  color: var(--accent);
+.note-btn .note-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  text-align: center;
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
 }
 
-.q-item.done .q-text {
-  color: var(--text-2);
-}
-
-.q-item.done .q-mark {
-  background: var(--accent);
-  color: #fff;
-}
-
-.group-head {
-  cursor: pointer;
-  user-select: none;
-}
-
-.chevron {
+.note-btn.none .note-n {
   color: var(--text-3);
-  transition: transform 0.25s var(--ease);
-  transform: rotate(-90deg);
 }
 
-.chevron.open {
-  transform: rotate(0);
-}
-
-.expand-enter-active,
-.expand-leave-active {
-  overflow: hidden;
-  transition: max-height 0.3s var(--ease), opacity 0.25s var(--ease);
-}
-
-.expand-enter-from,
-.expand-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-.expand-enter-to,
-.expand-leave-from {
-  max-height: 3000px;
-  opacity: 1;
-}
-
-.answer-area {
+/* ---------------- 抽屉笔记列表 ---------------- */
+.note-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.answer-input {
-  width: 100%;
-  resize: vertical;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.65;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.answer-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
-}
-
-.toast {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 18px;
-  border-radius: var(--r-pill);
+.note-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: var(--r-lg);
   background: var(--surface-solid);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-lg);
-  font-size: 13.5px;
-  font-weight: 550;
-  z-index: 300;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
 }
 
-.toast-enter-active,
-.toast-leave-active {
-  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+.note-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(10px);
+
+.note-ico {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.note-name {
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-go {
+  flex: none;
+  color: var(--text-3);
+}
+
+.note-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 40px 20px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+}
+
+.note-empty-ico {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--text-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.note-empty p {
+  max-width: 320px;
+  line-height: 1.7;
+}
+
+.note-empty code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+}
+
+.empty {
+  margin-top: 20px;
+  text-align: center;
+  color: var(--text-3);
+  padding: 40px 0;
+}
+
+/* ---------------- 答题进度卡 ---------------- */
+.progress-bar-wrap {
+  margin: 14px 0 12px;
+}
+
+.progress-tip {
+  line-height: 1.7;
+}
+
+.progress-tip code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.progress-actions {
+  margin-top: 12px;
+}
+
+.notice {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .stage-card {
+    padding: 16px 16px 18px;
+  }
+  .stage-head {
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+  .stage-head .col.grow {
+    min-width: 0;
+  }
+  .stage-no {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    font-size: 15px;
+  }
+  .stage-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .note-btn {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .note-btn span:nth-child(2) {
+    display: none;
+  }
+  .stage-chev {
+    width: 26px;
+    height: 26px;
+  }
 }
 </style>

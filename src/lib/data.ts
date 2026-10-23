@@ -252,8 +252,6 @@ export interface InterviewQuestion {
   type: string
   /** 题目内容 */
   text: string
-  /** md 里预置的答案（题目下紧跟的 `>` 引用块），无则空串 */
-  answer: string
 }
 
 export interface InterviewGroup {
@@ -273,24 +271,13 @@ function parseInterviewQuestions(raw: string, fallbackType: string, fileName: st
   const type = str(data.type, fallbackType)
   const questions: InterviewQuestion[] = []
   let idx = 0
-  let current: InterviewQuestion | null = null
   for (const line of body.split('\n')) {
     const m = /^\s*[-*]\s+(.+?)\s*$/.exec(line)
-    if (m) {
-      const text = stripMd(m[1])
-      if (text) {
-        idx++
-        current = { id: `${type}-${idx}`, type, text, answer: '' }
-        questions.push(current)
-      } else {
-        current = null
-      }
-      continue
-    }
-    // 题目下方的 `>` 引用块 → 答案（支持多行）
-    const a = /^\s*>\s?(.*)$/.exec(line)
-    if (a && current) {
-      current.answer = current.answer ? `${current.answer}\n${a[1]}` : a[1]
+    if (!m) continue
+    const text = stripMd(m[1])
+    if (text) {
+      idx++
+      questions.push({ id: `${type}-${idx}`, type, text })
     }
   }
   return { type, fileName, questions }
@@ -305,13 +292,55 @@ export const interviewGroups: InterviewGroup[] = Object.entries(interviewFiles)
 
 export const interviewQuestions: InterviewQuestion[] = interviewGroups.flatMap((g) => g.questions)
 
-/** 题目 id → md 预置答案，用于 localStorage 为空时回填 */
-export const interviewSeedAnswers: Record<string, string> = Object.fromEntries(
-  interviewQuestions.filter((q) => q.answer).map((q) => [q.id, q.answer])
+/* ------------------------------ 面试题答案笔记（按类型归属） ------------------------------
+ * 约定：一个 md 就是一道题的答案，文件放在 data/interview-notes/<类型文件名>/ 目录下，
+ * 目录名对应 data/interview/*.md 的文件名（如 javascript）。目录即归属，文件名就是答案标题。
+ */
+
+export interface InterviewNote {
+  /** 所属类型（目录名），对应 InterviewGroup.fileName */
+  type: string
+  /** 路由标识：文件名（不含 .md） */
+  slug: string
+  /** 标题：frontmatter 里有 title 就用它，否则用文件名 */
+  title: string
+  date: string
+  tags: string[]
+  body: string
+}
+
+const interviewNoteFiles = rawFiles(
+  import.meta.glob('../../data/interview-notes/*/*.md', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  })
 )
 
-export function interviewQuestionById(id: string): InterviewQuestion | undefined {
-  return interviewQuestions.find((q) => q.id === id)
+export const interviewNotes: InterviewNote[] = Object.entries(interviewNoteFiles)
+  .map(([path, raw]) => {
+    const parts = path.split('/')
+    const type = parts[parts.length - 2] ?? ''
+    const slug = parts[parts.length - 1]?.replace(/\.md$/i, '') ?? ''
+    const { data, body } = parseFrontmatter(raw)
+    return {
+      type,
+      slug,
+      title: str(data.title, slug),
+      date: str(data.date, ''),
+      tags: arr(data.tags),
+      body,
+    }
+  })
+  .filter((n) => n.type && n.slug && !n.slug.startsWith('.'))
+  .sort((a, b) => a.slug.localeCompare(b.slug, 'zh-Hans-CN'))
+
+export function interviewNotesForType(type: string): InterviewNote[] {
+  return interviewNotes.filter((n) => n.type === type)
+}
+
+export function interviewNoteBySlug(type: string, slug: string): InterviewNote | undefined {
+  return interviewNotes.find((n) => n.type === type && n.slug === slug)
 }
 
 /* ------------------------------ 日志（已下线） ------------------------------

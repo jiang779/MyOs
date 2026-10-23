@@ -4,9 +4,24 @@
  * 数据哲学：状态在浏览器。全部落在 localStorage，换机器靠 Git 存 md。
  */
 import { reactive, watch } from 'vue'
-import { interviewSeedAnswers } from './data'
+import progressJson from '../../data/interview-progress.json'
 
 const LS_KEY = 'myos.state.v1'
+
+/**
+ * 面试题完成进度的「项目内兜底」：data/interview-progress.json 随 git 同步，
+ * 在 localStorage 被清、换设备、首次打开时用它恢复进度。勾选后仍以 localStorage 为准。
+ */
+const progressSeed = (() => {
+  const out: Record<string, boolean> = {}
+  const done = (progressJson as { done?: Record<string, unknown> }).done
+  if (done && typeof done === 'object') {
+    for (const [id, v] of Object.entries(done)) {
+      if (v === true) out[id] = true
+    }
+  }
+  return out
+})()
 
 export type WeekStatus = 'todo' | 'active' | 'done'
 
@@ -32,10 +47,8 @@ interface AppState {
   checks: Record<string, boolean>
   /** 周状态覆盖（md 里的是初值） */
   weekStatus: Record<string, WeekStatus>
-  /** 面试题答案：题目 id → 用户输入的答案文本 */
-  answers: Record<string, string>
-  /** 面试题作答日期：题目 id → YYYY-MM-DD，用于统计「今日答了几道」 */
-  answerDates: Record<string, string>
+  /** 面试题完成状态：题目 id → 已完成 */
+  interviewDone: Record<string, boolean>
   /** 不健康饮食记录（按日期倒序） */
   junkRecords: JunkRecord[]
   /** 最近一次导出备份的时间（ISO），空串 = 从未备份 */
@@ -47,8 +60,7 @@ function defaults(): AppState {
     theme: 'light',
     checks: {},
     weekStatus: {},
-    answers: {},
-    answerDates: {},
+    interviewDone: { ...progressSeed },
     junkRecords: [],
     junkBackupAt: '',
   }
@@ -59,18 +71,15 @@ function load(): AppState {
   try {
     const raw = localStorage.getItem(LS_KEY)
     const saved = raw ? (JSON.parse(raw) as Partial<AppState>) : {}
-    const merged = { ...base, ...saved }
-    // localStorage 里没有答案时，用 md 里预置的答案回填（不覆盖已有答案）
-    const localAnswers = merged.answers ?? {}
-    for (const [id, ans] of Object.entries(interviewSeedAnswers)) {
-      if (!localAnswers[id] && ans) {
-        localAnswers[id] = ans
-      }
+    // 完成进度以项目 json 为底，localStorage 里的增量覆盖上去；
+    // 即使 localStorage 被清或只剩旧数据，也能从项目 json 兜底恢复。
+    return {
+      ...base,
+      ...saved,
+      interviewDone: { ...base.interviewDone, ...(saved.interviewDone ?? {}) },
     }
-    merged.answers = localAnswers
-    return merged
   } catch {
-    return { ...base, answers: { ...interviewSeedAnswers } }
+    return { ...base }
   }
 }
 
@@ -136,44 +145,31 @@ export function cycleWeekStatus(week: number, seed: WeekStatus): WeekStatus {
   return next
 }
 
-/* ------------------------------ 面试题答案 ------------------------------ */
+/* ------------------------------ 面试题完成状态 ------------------------------ */
 
-/** YYYY-MM-DD，避免依赖 data.ts 的 toISODate 造成循环引用 */
-function todayISO(): string {
-  const d = new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+export function isInterviewDone(id: string) {
+  return !!state.interviewDone[id]
 }
 
-export function getAnswer(id: string): string {
-  return state.answers[id] ?? ''
+export function toggleInterviewDone(id: string) {
+  state.interviewDone[id] = !isInterviewDone(id)
 }
 
-/** 保存答案，同时记录作答日期为今天 */
-export function setAnswer(id: string, text: string) {
-  const t = text.trim()
-  if (t) {
-    state.answers[id] = t
-    state.answerDates[id] = todayISO()
-  } else {
-    // 清空答案时一并清掉日期记录
-    delete state.answers[id]
-    delete state.answerDates[id]
+/**
+ * 从外部 JSON 导入面试题完成进度（按题目 id 合并，只增不改）。
+ * 返回新增的完成题数。外部文件不可信，这里逐项校验。
+ */
+export function importInterviewDone(rows: unknown): number {
+  if (!rows || typeof rows !== 'object') return 0
+  const rec = rows as Record<string, unknown>
+  let added = 0
+  for (const [id, v] of Object.entries(rec)) {
+    if (v === true && typeof id === 'string' && id && !state.interviewDone[id]) {
+      state.interviewDone[id] = true
+      added++
+    }
   }
-}
-
-export function removeAnswer(id: string) {
-  delete state.answers[id]
-  delete state.answerDates[id]
-}
-
-/** 今天已答的题目数量（用于「每天背 6 道」任务） */
-export function todayAnsweredCount(today = new Date()): number {
-  const iso = (() => {
-    const p = (n: number) => String(n).padStart(2, '0')
-    return `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
-  })()
-  return Object.values(state.answerDates).filter((d) => d === iso).length
+  return added
 }
 
 /* ------------------------------ 不健康饮食记录 ------------------------------ */

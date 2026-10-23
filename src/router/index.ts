@@ -13,6 +13,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/NoteDetail.vue'),
     meta: { title: '笔记' },
   },
+  {
+    path: '/interview-note/:type/:slug',
+    name: 'interview-note',
+    component: () => import('@/views/InterviewNoteDetail.vue'),
+    meta: { title: '面试题' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
