@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHead from '@/components/PageHead.vue'
 import SideSheet from '@/components/SideSheet.vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -15,6 +16,15 @@ function toggleType(k: string) {
   next.has(k) ? next.delete(k) : next.add(k)
   expanded.value = next
 }
+
+/* 从「面试星球」点进来时，带 ?type=xxx 直接展开对应类型 */
+const route = useRoute()
+onMounted(() => {
+  const t = String(route.query.type || '')
+  if (t && interviewGroups.some((g) => g.fileName === t)) {
+    expanded.value = new Set([t])
+  }
+})
 
 /* 抽屉：某类型的答案笔记 */
 const active = ref<InterviewGroup | null>(null)
@@ -48,6 +58,7 @@ function exportProgress() {
     exportedAt: new Date().toISOString(),
     total: totalCount,
     done: state.interviewDone,
+    doneAt: state.interviewDoneAt,
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -68,7 +79,8 @@ async function importProgress(e: Event) {
   try {
     const parsed: unknown = JSON.parse(await file.text())
     const rec = (parsed as { done?: unknown } | null)?.done ?? parsed
-    const n = importInterviewDone(rec)
+    const at = (parsed as { doneAt?: unknown } | null)?.doneAt
+    const n = importInterviewDone(rec, at)
     flash(n > 0 ? `已导入 ${n} 题完成进度` : '没有新进度（题目都已完成）')
   } catch {
     flash('这个文件读不出来，请选导出的 JSON 进度文件')

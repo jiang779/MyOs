@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue'
-import ParticleBackground from '@/components/ParticleBackground.vue'
+import AmbientBackdrop from '@/components/AmbientBackdrop.vue'
 </script>
 
 <template>
   <div class="shell">
-    <ParticleBackground />
+    <AmbientBackdrop />
     <AppSidebar />
     <main class="main">
       <RouterView v-slot="{ Component, route }">

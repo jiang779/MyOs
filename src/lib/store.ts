@@ -49,6 +49,8 @@ interface AppState {
   weekStatus: Record<string, WeekStatus>
   /** 面试题完成状态：题目 id → 已完成 */
   interviewDone: Record<string, boolean>
+  /** 面试题完成时间：题目 id → ISO 时间（用于连续天数 / 近 7 日） */
+  interviewDoneAt: Record<string, string>
   /** 不健康饮食记录（按日期倒序） */
   junkRecords: JunkRecord[]
   /** 最近一次导出备份的时间（ISO），空串 = 从未备份 */
@@ -61,6 +63,7 @@ function defaults(): AppState {
     checks: {},
     weekStatus: {},
     interviewDone: { ...progressSeed },
+    interviewDoneAt: {},
     junkRecords: [],
     junkBackupAt: '',
   }
@@ -77,6 +80,7 @@ function load(): AppState {
       ...base,
       ...saved,
       interviewDone: { ...base.interviewDone, ...(saved.interviewDone ?? {}) },
+      interviewDoneAt: { ...(saved.interviewDoneAt ?? {}) },
     }
   } catch {
     return { ...base }
@@ -116,7 +120,18 @@ watch(
 /* ------------------------------ 交互 ------------------------------ */
 
 export function toggleTheme() {
-  state.theme = state.theme === 'light' ? 'dark' : 'light'
+  const next: 'light' | 'dark' = state.theme === 'light' ? 'dark' : 'light'
+  const doc = document as Document & {
+    startViewTransition?: (cb: () => void) => { finished: Promise<void> }
+  }
+  // 有 View Transition 就用整页交叉淡入，避免主题色硬切
+  if (typeof doc.startViewTransition === 'function') {
+    doc.startViewTransition(() => {
+      state.theme = next
+    })
+  } else {
+    state.theme = next
+  }
 }
 
 export function taskKey(week: number, index: number) {
@@ -152,20 +167,36 @@ export function isInterviewDone(id: string) {
 }
 
 export function toggleInterviewDone(id: string) {
-  state.interviewDone[id] = !isInterviewDone(id)
+  const next = !isInterviewDone(id)
+  state.interviewDone[id] = next
+  if (next) {
+    state.interviewDoneAt[id] = new Date().toISOString()
+  } else {
+    delete state.interviewDoneAt[id]
+  }
+}
+
+/** 某题完成时间（ISO），没有记录返回空串 */
+export function interviewDoneAt(id: string): string {
+  return state.interviewDoneAt[id] ?? ''
 }
 
 /**
  * 从外部 JSON 导入面试题完成进度（按题目 id 合并，只增不改）。
  * 返回新增的完成题数。外部文件不可信，这里逐项校验。
+ * doneAt 可选：老备份里没有，导入后按「导入时刻」补一个近似时间。
  */
-export function importInterviewDone(rows: unknown): number {
+export function importInterviewDone(rows: unknown, rowsAt?: unknown): number {
   if (!rows || typeof rows !== 'object') return 0
   const rec = rows as Record<string, unknown>
+  const at = rowsAt && typeof rowsAt === 'object' ? (rowsAt as Record<string, unknown>) : null
+  const now = new Date().toISOString()
   let added = 0
   for (const [id, v] of Object.entries(rec)) {
     if (v === true && typeof id === 'string' && id && !state.interviewDone[id]) {
       state.interviewDone[id] = true
+      const raw = at?.[id]
+      state.interviewDoneAt[id] = typeof raw === 'string' && raw ? raw : now
       added++
     }
   }

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import StatTile from '@/components/StatTile.vue'
-import ProgressBar from '@/components/ProgressBar.vue'
-import ProgressRing from '@/components/ProgressRing.vue'
-import CheckItem from '@/components/CheckItem.vue'
-import MarkdownView from '@/components/MarkdownView.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import SideSheet from '@/components/SideSheet.vue'
+import MarkdownView from '@/components/MarkdownView.vue'
+import InterviewConsole from '@/components/dashboard/InterviewConsole.vue'
+import PlanCard from '@/components/dashboard/PlanCard.vue'
+import RoadCard from '@/components/dashboard/RoadCard.vue'
+import NotesCard from '@/components/dashboard/NotesCard.vue'
+import RecipeCard from '@/components/dashboard/RecipeCard.vue'
+import DrillOverlay from '@/components/dashboard/DrillOverlay.vue'
 import {
   config,
   currentWeek,
@@ -13,242 +16,146 @@ import {
   dietTodayTomorrow,
   formatDateCN,
   greeting,
-  interviewGroups,
-  interviewNotes,
-  interviewQuestions,
-  notes,
-  projects,
-  stages,
   toISODate,
-  weeks,
+  type InterviewQuestion,
 } from '@/lib/data'
-import { isChecked, toggleTask, weekStatus } from '@/lib/store'
+import { todayDrill } from '@/lib/dashboard'
+import { useMediaQuery } from '@/lib/useMedia'
+
+const isMobile = useMediaQuery('(max-width: 720px)')
 
 const today = new Date()
 const week = currentWeek()!
 const weekNo = currentWeekNo(today)
-const taskList = computed(() => week.tasks)
-const doneCount = computed(() => week.tasks.filter((t, i) => isChecked(week.no, i, t.done)).length)
-const weekProgress = computed(() =>
-  week.tasks.length ? (doneCount.value / week.tasks.length) * 100 : week.progress
-)
-
+const hello = greeting(today)
 const dateLabel = `${formatDateCN(toISODate(today))} 星期${'日一二三四五六'[today.getDay()]}`
-const noteCount = notes.length
-
-const totalQ = interviewQuestions.length
-const answerCount = interviewNotes.length
-const typeCount = interviewGroups.length
-
-const doneWeeks = computed(() => weeks.filter((w) => weekStatus(w.no, w.status) === 'done').length)
-const weekTotal = weeks.length
-const avgProject = computed(() =>
-  projects.length ? Math.round(projects.reduce((s, p) => s + p.progress, 0) / projects.length) : 0
-)
-
-const stageProgress = computed(() =>
-  stages.map((s) => {
-    const done = s.weeks.filter((w) => weekStatus(w.no, w.status) === 'done').length
-    return { ...s, done, total: s.weeks.length, pct: (done / s.weeks.length) * 100 }
-  })
-)
-
-const sheetOpen = ref(false)
+const shortDate = `${today.getMonth() + 1}/${today.getDate()} 周${
+  '日一二三四五六'[today.getDay()]
+} · 第 ${weekNo} 周`
 
 const meals = dietTodayTomorrow(today)
 const MEAL_ICON: Record<string, string> = { 早餐: '🌅', 午餐: '☀️', 晚餐: '🌙', 加餐: '🍎', 夜宵: '🌛' }
-const WEEK_CN = '日一二三四五六'
-const wd = (d: Date) => '星期' + WEEK_CN[d.getDay()]
 
-const track = ref<HTMLElement | null>(null)
-const activeGroup = ref(0)
-const GAP = 16
+/* ---------------- 今日 5 题 ---------------- */
+const drillOpen = ref(false)
+const drillQuestions = ref<InterviewQuestion[]>([])
 
-function onScroll() {
-  const el = track.value
-  if (!el) return
-  const first = el.querySelector('.page') as HTMLElement | null
-  const w = first?.offsetWidth
-  if (!w) return
-  const idx = Math.round((el.scrollLeft - 16) / (w + GAP))
-  activeGroup.value = Math.max(0, Math.min(3, idx))
+function startDrill() {
+  const qs = todayDrill(5)
+  if (!qs.length) return
+  drillQuestions.value = qs
+  drillOpen.value = true
 }
 
-function goToGroup(i: number) {
-  const el = track.value
-  const first = el?.querySelector('.page') as HTMLElement | null
-  const w = first?.offsetWidth
-  if (!el || !w) return
-  el.scrollTo({ left: 16 + i * (w + GAP), behavior: 'smooth' })
+/* ---------------- 抽屉 ---------------- */
+const sheet = ref<'' | 'plan' | 'recipe'>('')
+const sheetOpen = computed(() => sheet.value !== '')
+const sheetTitle = computed(() => (sheet.value === 'plan' ? week.title : '今明两天的食谱'))
+const sheetKicker = computed(() =>
+  sheet.value === 'plan' ? `第 ${week.no} 周 · ${week.stageTitle}` : dateLabel
+)
+
+/* ---------------- 移动端四张卡切换 ---------------- */
+const TABS = ['计划', '路线', '笔记', '食谱']
+const tab = ref(0)
+const deck = ref<HTMLElement | null>(null)
+
+function goTab(i: number) {
+  tab.value = i
+  const el = deck.value
+  if (!el) return
+  el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+}
+
+function onDeckScroll() {
+  const el = deck.value
+  if (!el) return
+  const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth))
+  tab.value = Math.max(0, Math.min(TABS.length - 1, i))
 }
 </script>
 
 <template>
-  <div class="dashboard">
-    <div ref="track" class="scroll-track" @scroll="onScroll">
-      <!-- 分组 A：首页概览（Hero + 统计瓦片） -->
-      <div class="page page-overview">
-        <section class="card hero">
-          <div class="hero-left">
-            <span class="page-kicker">第 {{ weekNo }} 周 · {{ week.stageTitle }}</span>
-            <h1 class="hero-title">{{ greeting(today) }}，{{ config.owner }}</h1>
-            <p class="hero-sub">
+  <div class="dashboard" :class="{ 'is-mobile': isMobile }">
+    <!-- ============================ 移动端：一屏不滚动 ============================ -->
+    <template v-if="isMobile">
+      <header class="m-hero">
+        <h1 class="m-hello">{{ hello }}，{{ config.owner }}</h1>
+        <span class="m-sub num">{{ shortDate }}</span>
+      </header>
+
+      <InterviewConsole compact class="m-console" @drill="startDrill" />
+
+      <nav class="m-tabs" aria-label="卡片切换">
+        <button
+          v-for="(t, i) in TABS"
+          :key="t"
+          type="button"
+          :class="{ active: tab === i }"
+          @click="goTab(i)"
+        >
+          {{ t }}
+        </button>
+      </nav>
+
+      <div ref="deck" class="m-deck" @scroll.passive="onDeckScroll">
+        <div class="m-panel"><PlanCard dense @open="sheet = 'plan'" /></div>
+        <div class="m-panel"><RoadCard dense /></div>
+        <div class="m-panel"><NotesCard dense /></div>
+        <div class="m-panel"><RecipeCard dense @open="sheet = 'recipe'" /></div>
+      </div>
+    </template>
+
+    <!-- ============================ 桌面端：Bento ============================ -->
+    <template v-else>
+      <div class="d-dash">
+        <header class="hero">
+          <div class="hero-main">
+            <span class="kicker"><i class="dot" />第 {{ weekNo }} 周 · {{ week.stageTitle }}</span>
+            <h1 class="hello">{{ hello }}，{{ config.owner }}</h1>
+            <p class="sub">
               {{ dateLabel }}
               <span class="sep">·</span>
               本周焦点：{{ week.title }}
             </p>
           </div>
-          <div class="hero-right">
-            <ProgressRing :value="weekProgress" :size="120" :stroke="10">
-              <b>{{ doneCount }}<em>/{{ taskList.length }}</em></b>
-              <span class="ring-cap">本周进度</span>
-            </ProgressRing>
-          </div>
-        </section>
 
-        <div class="stats-row">
-          <StatTile icon="note" tone="fire" label="学习笔记" :value="noteCount" unit="篇" hint="按周归位" />
-          <StatTile icon="cube" tone="violet" label="自研项目" :value="projects.length" unit="个" :hint="`平均完成度 ${avgProject}%`" />
-          <StatTile icon="route" tone="green" label="已完成周" :value="doneWeeks" :unit="`/ ${weekTotal} 周`" hint="36 周路线" />
+          <div class="hero-actions">
+            <button class="btn primary" type="button" @click="startDrill">
+              <AppIcon name="spark" :size="15" />
+              随机 5 题
+            </button>
+            <RouterLink class="btn ghost" to="/interview">面试题库</RouterLink>
+          </div>
+        </header>
+
+        <div class="bento">
+          <InterviewConsole class="area-console" @drill="startDrill" />
+          <PlanCard class="area-plan" @open="sheet = 'plan'" />
+          <RoadCard class="area-road" />
+          <NotesCard class="area-notes" />
+          <RecipeCard class="area-recipe" @open="sheet = 'recipe'" />
         </div>
       </div>
+    </template>
 
-      <!-- 分组 B：本周计划（三件事 + 路线进度） -->
-      <div class="page page-plan">
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title"><span class="ico">✅</span> 这周的三件事</h2>
-            <div class="row" style="gap: 8px">
-              <span class="card-note">{{ doneCount }}/{{ taskList.length }}</span>
-              <button class="btn ghost sm" @click="sheetOpen = true">完整周计划</button>
-            </div>
-          </div>
+    <DrillOverlay :open="drillOpen" :questions="drillQuestions" @close="drillOpen = false" />
 
-          <div class="col task-list">
-            <CheckItem
-              v-for="(t, i) in taskList"
-              :key="i"
-              :text="t.text"
-              :checked="isChecked(week.no, i, t.done)"
-              @toggle="toggleTask(week.no, i, t.done)"
-            />
-          </div>
+    <SideSheet :open="sheetOpen" :kicker="sheetKicker" :title="sheetTitle" @close="sheet = ''">
+      <MarkdownView v-if="sheet === 'plan'" :source="week.body" />
 
-          <div class="prog">
-            <ProgressBar :value="weekProgress" tone="green" />
-          </div>
-
-          <div class="row between wrap meta">
-            <div class="col">
-              <span class="tiny muted">本周交付物</span>
-              <b class="deliver">{{ week.deliverable }}</b>
-            </div>
-            <div class="row" style="gap: 6px">
-              <span class="pill info">阶段 {{ week.stage }}</span>
-              <span class="pill">约 {{ week.hours }} 小时</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title"><span class="ico">🧭</span> 路线进度</h2>
-            <RouterLink to="/agent" class="card-note">详情 →</RouterLink>
-          </div>
-          <div class="col stage-list">
-            <div v-for="s in stageProgress" :key="s.id" class="stage-row">
-              <div class="row between">
-                <span class="tiny dim truncate">{{ s.title }}</span>
-                <span class="tiny muted">{{ s.done }}/{{ s.total }}</span>
-              </div>
-              <ProgressBar :value="s.pct" :height="6" :tone="s.pct === 100 ? 'green' : ''" />
-            </div>
+      <div v-else-if="sheet === 'recipe'" class="rs">
+        <section v-for="(day, i) in [meals.today, meals.tomorrow]" :key="i" class="rs-day">
+          <h3 class="rs-title">{{ i === 0 ? '今天' : '明天' }} · {{ day.day?.name || '—' }}</h3>
+          <p class="tiny muted">{{ day.day?.kind || '' }}</p>
+          <div v-for="m in day.day?.meals ?? []" :key="m.label" class="rs-meal">
+            <span class="rs-lbl">{{ MEAL_ICON[m.label] || '·' }} {{ m.label }}</span>
+            <span class="rs-chips">
+              <span v-for="it in m.items" :key="it" class="rs-chip">{{ it }}</span>
+            </span>
           </div>
         </section>
       </div>
-
-      <!-- 分组 C：饮食管理（今天 + 明天） -->
-      <div class="page page-diet">
-        <section class="card meal-card is-today">
-          <div class="card-head">
-            <h2 class="card-title"><span class="ico">🍽️</span> 今天吃什么</h2>
-            <span class="pill info">{{ meals.today.day?.name }}</span>
-          </div>
-          <div class="meals">
-            <div v-for="m in meals.today.day?.meals" :key="m.label" class="meal">
-              <span class="meal-label">{{ MEAL_ICON[m.label] }} {{ m.label }}</span>
-              <div class="chips">
-                <span v-for="(it, i) in m.items" :key="i" class="chip">{{ it }}</span>
-              </div>
-            </div>
-          </div>
-          <p class="tiny muted meal-foot">{{ wd(meals.today.date) }} · {{ meals.today.day?.kind }}</p>
-        </section>
-
-        <section class="card meal-card">
-          <div class="card-head">
-            <h2 class="card-title"><span class="ico">📅</span> 明天吃什么</h2>
-            <span class="pill">{{ meals.tomorrow.day?.name }}</span>
-          </div>
-          <div class="meals">
-            <div v-for="m in meals.tomorrow.day?.meals" :key="m.label" class="meal">
-              <span class="meal-label">{{ MEAL_ICON[m.label] }} {{ m.label }}</span>
-              <div class="chips">
-                <span v-for="(it, i) in m.items" :key="i" class="chip">{{ it }}</span>
-              </div>
-            </div>
-          </div>
-          <p class="tiny muted meal-foot">{{ wd(meals.tomorrow.date) }} · {{ meals.tomorrow.day?.kind }}</p>
-        </section>
-      </div>
-
-      <!-- 分组 D：面试刷题 -->
-      <div class="page page-interview">
-        <section class="card interview-card">
-          <div class="card-head">
-            <h2 class="card-title"><span class="ico">📝</span> 面试题</h2>
-            <RouterLink to="/interview" class="card-note">去刷题 →</RouterLink>
-          </div>
-          <div class="interview-body">
-            <div class="row between wrap interview-stats">
-              <div class="interview-stat">
-                <span class="tiny muted">题库总数</span>
-                <b class="interview-num">{{ totalQ }}<em>题</em></b>
-              </div>
-              <div class="interview-stat">
-                <span class="tiny muted">答案笔记</span>
-                <b class="interview-num">{{ answerCount }}<em>篇</em></b>
-              </div>
-              <div class="interview-stat">
-                <span class="tiny muted">类型</span>
-                <b class="interview-num">{{ typeCount }}<em>类</em></b>
-              </div>
-            </div>
-            <ProgressBar :value="totalQ ? (answerCount / totalQ) * 100 : 0" tone="violet" :height="7" />
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <div class="track-dots" aria-hidden="true">
-      <button
-        v-for="i in 4"
-        :key="i"
-        class="dot"
-        :class="{ on: activeGroup === i - 1 }"
-        type="button"
-        :aria-label="`第 ${i} 组`"
-        @click="goToGroup(i - 1)"
-      />
-    </div>
-
-    <SideSheet
-      :open="sheetOpen"
-      :kicker="`第 ${week.no} 周 · ${week.stageTitle}`"
-      :title="week.title"
-      @close="sheetOpen = false"
-    >
-      <MarkdownView :source="week.body" />
     </SideSheet>
   </div>
 </template>
@@ -256,354 +163,262 @@ function goToGroup(i: number) {
 <style scoped>
 .dashboard {
   position: relative;
-  height: 100%;
-  overflow: hidden;
+}
+
+/* ============================ 桌面 Bento ============================ */
+.d-dash {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  padding-bottom: 6px;
 }
 
-.dashboard :deep(.card) {
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.22s var(--ease), border-color 0.22s var(--ease);
-}
-
-.dashboard :deep(.card:hover) {
-  transform: translateY(-1px);
-  border-color: var(--line-strong);
-}
-
-/* ---------------- 滚动容器（桌面栅格 / 非桌面横向滑动） ---------------- */
-.scroll-track {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-}
-
-/* ---------------- Hero ---------------- */
 .hero {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 24px;
+  padding: 2px 2px 0;
+}
+
+.hero-main {
+  min-width: 0;
+}
+
+.kicker {
+  display: inline-flex;
   align-items: center;
-  padding: 22px 26px;
-  overflow: hidden;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
 }
 
-.hero::after {
-  content: '';
-  position: absolute;
-  right: -90px;
-  top: -90px;
-  width: 240px;
-  height: 240px;
+.kicker .dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(94, 92, 230, 0.1), transparent 70%);
-  pointer-events: none;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
 }
 
-.hero-title {
-  font-size: 25px;
-  letter-spacing: -0.03em;
+.hello {
+  font-size: clamp(26px, 2.7vw, 36px);
+  letter-spacing: -0.04em;
+  margin-top: 7px;
 }
 
-.hero-sub {
+.sub {
   margin-top: 6px;
-  color: var(--text-2);
-  font-size: 13.5px;
+  font-size: 12.5px;
+  color: var(--text-3);
 }
 
 .sep {
-  color: var(--text-3);
-  margin: 0 4px;
+  opacity: 0.5;
+  margin: 0 6px;
 }
 
-.hero-right {
-  position: relative;
-  z-index: 1;
+.hero-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding-bottom: 3px;
 }
 
-.ring-cap {
-  font-size: 11px;
-  color: var(--text-3);
-  margin-top: 2px;
-}
-
-/* ---------------- 统计瓦片 ---------------- */
-.stats-row {
+.bento {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-areas:
+    'console console console console console console console console plan plan plan plan'
+    'console console console console console console console console road road road road'
+    'notes notes notes notes notes notes notes notes recipe recipe recipe recipe';
+  gap: 14px;
+  align-items: stretch;
 }
 
-/* ---------------- 主卡片通用 ---------------- */
-.card {
-  padding: 18px 20px;
+.area-console {
+  grid-area: console;
+}
+.area-plan {
+  grid-area: plan;
+}
+.area-road {
+  grid-area: road;
+}
+.area-notes {
+  grid-area: notes;
+}
+.area-recipe {
+  grid-area: recipe;
 }
 
-.card-head {
-  margin-bottom: 12px;
+/* 平板：控制台通栏，两列副卡 */
+@media (max-width: 1180px) {
+  .bento {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-areas:
+      'console console console console console console'
+      'plan plan plan road road road'
+      'notes notes notes recipe recipe recipe';
+  }
 }
 
-.task-list {
-  gap: 0;
-}
-
-.task-list :deep(.task) {
-  padding: 7px 10px;
-}
-
-.prog {
-  margin-top: 10px;
-}
-
-.meta {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.deliver {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.stage-list {
-  gap: 12px;
-}
-
-.stage-row {
+/* ============================ 移动端一屏 ============================ */
+.dashboard.is-mobile {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  overflow: hidden;
 }
 
-/* ---------------- 面试题 ---------------- */
-.interview-card {
-  padding: 18px 20px;
-}
-
-.interview-body {
+.m-hero {
+  flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
 }
 
-.interview-stats {
-  gap: 12px;
+.m-hello {
+  font-size: 19px;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.interview-stat {
-  display: flex;
-  flex-direction: column;
+.m-sub {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.m-console {
+  flex: 1.15 1 0;
+  min-height: 0;
+}
+
+.m-tabs {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 2px;
-  flex: 1;
-  min-width: 74px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
 }
 
-.interview-num {
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+.m-tabs button {
+  padding: 5px 0;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  font-weight: 560;
+  color: var(--text-3);
+  transition: all var(--dur-2) var(--ease-out);
 }
 
-.interview-num em {
-  font-style: normal;
+.m-tabs button.active {
+  color: var(--text);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+
+.m-deck {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.m-deck::-webkit-scrollbar {
+  display: none;
+}
+
+.m-panel {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  padding: 0 1px;
+}
+
+/* 矮屏兜底：再压一档，保证仍然一屏 */
+@media (max-height: 700px) {
+  .m-hello {
+    font-size: 17px;
+  }
+  .m-hero {
+    padding-bottom: 0;
+  }
+  .dashboard.is-mobile {
+    gap: 6px;
+  }
+  .m-console {
+    flex: 0 0 auto;
+  }
+  .m-deck {
+    flex: 1 1 0;
+  }
+}
+
+/* ============================ 食谱抽屉 ============================ */
+.rs {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.rs-day {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rs-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.rs-meal {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.rs-lbl {
+  flex: none;
+  width: 68px;
   font-size: 12px;
   color: var(--text-3);
-  font-weight: 550;
-  margin-left: 2px;
+  padding-top: 2px;
 }
 
-/* ---------------- 食谱（降噪：仅细描边区分今天） ---------------- */
-.meal-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px;
-}
-
-.meal-card.is-today {
-  border-color: rgba(10, 132, 255, 0.35);
-}
-
-.meals {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.meal {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.meal-label {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
-.chips {
+.rs-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
+.rs-chip {
+  padding: 2px 9px;
   border-radius: var(--r-pill);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 12px;
   color: var(--text-2);
   background: var(--surface-2);
   border: 1px solid var(--line);
-  line-height: 1.4;
-}
-
-.meal-foot {
-  margin-top: 0;
-}
-
-/* ============================================================
-   桌面 ≥1400px：静态栅格，一屏平铺
-   ============================================================ */
-@media (min-width: 1400px) {
-  .dashboard {
-    height: auto;
-    min-height: 100%;
-    overflow: visible;
-  }
-
-  .scroll-track {
-    flex: none;
-    height: auto;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 330px;
-    grid-template-areas:
-      'hero hero'
-      'stats interview'
-      'plan diet';
-    gap: 14px;
-    align-content: start;
-  }
-
-  .page-overview {
-    display: contents;
-  }
-  .hero {
-    grid-area: hero;
-  }
-  .stats-row {
-    grid-area: stats;
-  }
-  .page-plan {
-    grid-area: plan;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  .page-interview {
-    grid-area: interview;
-  }
-  .page-diet {
-    grid-area: diet;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-}
-
-/* ============================================================
-   非桌面 <1400px：横向滑动 + 分页吸附
-   ============================================================ */
-@media (max-width: 1399px) {
-  .scroll-track {
-    display: flex;
-    gap: 16px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scroll-padding-left: 16px;
-    padding: 4px 16px 0;
-    align-items: stretch;
-  }
-
-  .scroll-track::-webkit-scrollbar {
-    display: none;
-  }
-  .scroll-track {
-    scrollbar-width: none;
-  }
-
-  .page {
-    flex: 0 0 auto;
-    width: min(82vw, 540px);
-    height: 100%;
-    scroll-snap-align: start;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overflow: hidden;
-  }
-
-  .page-overview {
-    display: flex;
-    flex-direction: column;
-  }
-}
-
-/* ---------------- 移动端 <900px：单页分组 ---------------- */
-@media (max-width: 900px) {
-  .page {
-    width: min(86vw, 460px);
-  }
-}
-
-/* ---------------- 分页指示点 ---------------- */
-.track-dots {
-  display: none;
-}
-
-@media (max-width: 1399px) {
-  .track-dots {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 10px 0 12px;
-  }
-
-  .dot {
-    width: 6px;
-    height: 6px;
-    padding: 0;
-    border-radius: 999px;
-    background: var(--line-strong);
-    border: 0;
-    cursor: pointer;
-    transition: all 0.22s var(--ease);
-  }
-
-  .dot.on {
-    width: 18px;
-    background: var(--accent);
-  }
-}
-
-@media (max-width: 560px) {
-  .hero {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 18px 18px;
-  }
-  .hero-right {
-    justify-self: start;
-  }
 }
 </style>
