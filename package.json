@@ -11,6 +11,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@tsparticles/slim": "4.4.0",
+    "@tsparticles/vue3": "4.4.0",
     "highlight.js": "^11.10.0",
     "markdown-it": "^14.1.0",
     "three": "^0.186.1",

@@ -109,30 +109,12 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 <style scoped>
 .header {
   flex: none;
-  position: relative;
   height: var(--header-h);
   z-index: 20;
-  background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  border-bottom: 1px solid transparent;
-}
-
-.header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--line-strong) 18%,
-    var(--line-strong) 82%,
-    transparent
-  );
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--line);
 }
 
 .header-inner {
@@ -162,8 +144,6 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
   font-size: 19px;
   border-radius: 11px;
   background: var(--accent-soft);
-  border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 var(--glass-hi);
 }
 
 .brand-text {
@@ -192,7 +172,6 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 }
 
 .nav-item {
-  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -217,19 +196,6 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 .nav-item.active {
   color: var(--accent);
   background: var(--accent-soft);
-}
-
-.nav-item.active::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
 }
 
 .header-right {
@@ -299,10 +265,9 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
     align-items: center;
     justify-content: space-between;
     padding: 0 14px;
-    background: var(--bg);
-    background: color-mix(in srgb, var(--bg) 76%, transparent);
-    backdrop-filter: blur(22px) saturate(170%);
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-bottom: 1px solid var(--line);
   }
 
@@ -341,17 +306,15 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
     z-index: 20;
     align-items: stretch;
     justify-content: space-around;
-    background: var(--bg);
-    background: color-mix(in srgb, var(--bg) 84%, transparent);
-    backdrop-filter: blur(22px) saturate(170%);
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-top: 1px solid var(--line);
-    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.06);
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
   }
 
   .tab-item {
-    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -363,19 +326,6 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
     color: var(--text-3);
     border-radius: 10px;
     transition: color 0.22s var(--ease);
-  }
-
-  .tab-item.active::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    width: 16px;
-    height: 2px;
-    margin-left: -8px;
-    border-radius: 2px;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
   }
 
   .tab-item:active {
