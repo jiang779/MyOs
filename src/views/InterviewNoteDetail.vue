@@ -30,8 +30,8 @@ const activeId = ref('')
 function jump(id: string) {
   const el = document.getElementById(id)
   if (!el) return
-  const top = el.getBoundingClientRect().top + window.scrollY - 24
-  window.scrollTo({ top, behavior: 'smooth' })
+  // 页面真实滚动容器是 .main（overflow-y:auto），用 scrollIntoView 才能触发其滚动
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   activeId.value = id
   if (isNarrow()) tocOpen.value = false
 }
@@ -75,14 +75,18 @@ function revealActive() {
 
 const listEl = ref<HTMLElement | null>(null)
 
+/** 内容滚动容器是 App.vue 里的 <main class="main">，scroll 事件发生在它身上而非 window */
+let scroller: HTMLElement | null = null
+
 onMounted(() => {
-  window.addEventListener('scroll', spy, { passive: true })
+  scroller = document.querySelector<HTMLElement>('main.main')
+  scroller?.addEventListener('scroll', spy, { passive: true })
   window.addEventListener('resize', spy)
   spy()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('scroll', spy)
+  scroller?.removeEventListener('scroll', spy)
   window.removeEventListener('resize', spy)
 })
 
