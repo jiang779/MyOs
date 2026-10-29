@@ -1,5 +1,7 @@
 # AI 助手模块
 
+> 非技术向的功能学习手册（按使用顺序，含 7 天学习路线与维护规则）：[`docs/ai-feature-guide.md`](../../docs/ai-feature-guide.md)
+
 通用对话模块。**代码不绑定任何业务领域**，领域内容全部通过 [`config.ts`](./config.ts) 注入。
 
 ## 入口

@@ -20,36 +20,88 @@ const settingsOpen = ref(false)
 const body = ref<HTMLElement | null>(null)
 const composer = ref<InstanceType<typeof Composer> | null>(null)
 
+const STICK_THRESHOLD = 60
+const stickToBottom = ref(true)
+let lastScrollTop = 0
+
 function nearBottom() {
   const el = body.value
   if (!el) return true
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  return el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD
+}
+
+/**
+ * 滚动事件只更新「是否继续跟随底部」，绝不在这里写 scrollTop。
+ * 之前在这里调 scrollToBottom()，用户往上滑会被立刻拉回底部，并且
+ * 每次滚动都触发一次写入，造成一卡一卡。
+ */
+function onBodyScroll() {
+  const el = body.value
+  if (!el) return
+  const top = el.scrollTop
+
+  if (nearBottom()) {
+    stickToBottom.value = true
+  } else if (top < lastScrollTop - 2) {
+    // 用户主动往上滑：暂停自动跟随
+    stickToBottom.value = false
+  }
+
+  lastScrollTop = top
 }
 
 function scrollToBottom(force = false) {
   const el = body.value
   if (!el) return
-  if (!force && !nearBottom()) return
-  el.scrollTop = el.scrollHeight
+  if (!force && !stickToBottom.value) return
+
+  const target = el.scrollHeight - el.clientHeight
+  // 已经在底部就不要重复写，避免滚动事件回环
+  if (Math.abs(el.scrollTop - target) < 2) return
+
+  el.scrollTop = target
+  lastScrollTop = target
+}
+
+function jumpToBottom() {
+  stickToBottom.value = true
+  nextTick(() => scrollToBottom(true))
 }
 
 watch(
   () => state.messages.length,
-  () => nextTick(() => scrollToBottom(true))
+  () => {
+    // 完成一条回答时，如果用户正在往上看，不要把他拉回底部
+    nextTick(() => scrollToBottom())
+  }
 )
 watch(
   () => state.streaming?.version,
-  () => nextTick(() => scrollToBottom())
+  () => {
+    if (!stickToBottom.value) return
+    nextTick(() => scrollToBottom())
+  }
+)
+watch(
+  () => state.activeId,
+  () => {
+    stickToBottom.value = true
+    lastScrollTop = 0
+    nextTick(() => scrollToBottom(true))
+  }
 )
 watch(
   () => state.sending,
   (sending) => {
-    if (sending) nextTick(() => scrollToBottom(true))
+    if (!sending) return
+    stickToBottom.value = true
+    nextTick(() => scrollToBottom(true))
   }
 )
 
 function onSend(text: string) {
   listOpen.value = false
+  stickToBottom.value = true
   void assistant.send(text)
   nextTick(() => scrollToBottom(true))
 }
@@ -134,7 +186,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         @close="listOpen = false"
       />
 
-      <div ref="body" class="ai-body" @scroll.passive="() => scrollToBottom()">
+      <div ref="body" class="ai-body" @scroll.passive="onBodyScroll">
         <div v-if="!state.messages.length && !state.streaming" class="ai-empty">
           <p class="ai-greeting">{{ cfg.greeting }}</p>
           <div class="ai-suggestions">
@@ -156,6 +208,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         />
         <StreamingMessage v-if="state.streaming" :stream="state.streaming" />
       </div>
+
+      <button
+        v-if="!stickToBottom"
+        type="button"
+        class="ai-jump"
+        aria-label="回到底部"
+        title="回到底部"
+        @click="jumpToBottom"
+      >
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14" />
+          <path d="M6 13l6 6 6-6" />
+        </svg>
+      </button>
 
       <div v-if="state.resumable" class="ai-resume">
         <span class="resume-dot" />
@@ -250,10 +316,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 18px 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.ai-jump {
+  position: absolute;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 4;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  box-shadow: var(--shadow);
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.ai-jump:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
 }
 
 .ai-resume {

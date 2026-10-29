@@ -1,5 +1,7 @@
 # AI Chat 流式协议
 
+> 非技术向的功能学习手册：[`ai-feature-guide.md`](./ai-feature-guide.md)
+
 版本 **1.0** · 适用于 `src/ai` 的 `HttpTransport` / `DirectTransport` / `MockTransport`
 
 这份文档描述前端与聊天服务之间的 HTTP + SSE 契约，以及客户端如何解析、渲染、停止和续传。
