@@ -7,6 +7,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/interview', name: 'interview', component: () => import('@/views/Interview.vue'), meta: { title: '面试题' } },
   { path: '/health', name: 'health', component: () => import('@/views/Health.vue'), meta: { title: '健康' } },
   { path: '/notes', name: 'notes', component: () => import('@/views/Notes.vue'), meta: { title: '笔记' } },
+  { path: '/knowledge', name: 'knowledge', component: () => import('@/views/KnowledgeView.vue'), meta: { title: '知识库' } },
+  { path: '/tools', name: 'tools', component: () => import('@/views/ToolsView.vue'), meta: { title: '工具' } },
   {
     path: '/note/:week/:slug',
     name: 'note',

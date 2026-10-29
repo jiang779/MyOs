@@ -126,3 +126,7 @@ export function renderMarkdown(src: string): string {
 export function renderInline(src: string): string {
   return md.renderInline(src ?? '')
 }
+
+/** 供其他地方复用同一份 highlight.js 语言注册 */
+export { hljs }
+

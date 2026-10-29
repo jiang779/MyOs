@@ -261,23 +261,41 @@ code {
    布局外壳
    ============================================================ */
 .shell {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   position: relative;
   z-index: 1;
+  transition: grid-template-columns 0.38s var(--ease-out);
+}
+
+.shell > .header,
+.shell > .mheader {
+  grid-column: 1 / -1;
+}
+
+/* 对话框打开时，为右侧面板让出空间，中间内容整体左移 */
+@media (min-width: 1200px) {
+  html.ai-open .shell {
+    grid-template-columns: minmax(0, 1fr) 444px;
+  }
 }
 
 .main {
-  flex: 1;
+  grid-column: 1;
+  grid-row: 2;
+  position: relative;
+  z-index: 1;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  width: 100%;
   max-width: 1240px;
-  align-self: center;
+  /* 左边与 Header 内容左缘对齐；打开面板时只从右侧收窄 */
+  margin-left: max(0px, calc((100vw - 1240px) / 2));
+  margin-right: 0;
   padding: 26px 44px 56px;
 }
 

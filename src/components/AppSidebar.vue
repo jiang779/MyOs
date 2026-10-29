@@ -11,6 +11,8 @@ const nav = [
   { to: '/interview', label: '面试题', icon: 'book' },
   { to: '/health', label: '健康', icon: 'heart' },
   { to: '/notes', label: '笔记', icon: 'note' },
+  { to: '/knowledge', label: '知识库', icon: 'layers' },
+  { to: '/tools', label: '工具', icon: 'plug' },
 ]
 
 const route = useRoute()
@@ -84,7 +86,7 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
   <!-- 移动端：底部 Tab -->
   <nav class="tabbar" aria-label="底部导航">
     <RouterLink
-      v-for="item in nav"
+      v-for="item in nav.slice(0, 6)"
       :key="item.to"
       :to="item.to"
       class="tab-item"

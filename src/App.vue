@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue'
 import AmbientBackdrop from '@/components/AmbientBackdrop.vue'
+import Assistant from '@/ai/Assistant.vue'
 </script>
 
 <template>
@@ -14,6 +15,7 @@ import AmbientBackdrop from '@/components/AmbientBackdrop.vue'
         </Transition>
       </RouterView>
     </main>
+    <Assistant />
   </div>
 </template>
 
